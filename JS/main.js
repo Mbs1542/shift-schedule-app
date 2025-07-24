@@ -262,9 +262,67 @@ export function createMessage(to, subject, messageBody) {
 }
 
 /**
- * Requests a shift suggestion from Gemini API for the current selected shift cell.
+ * מבקש הצעת שיבוץ מ-Gemini API דרך פונקציית שרת מאובטחת.
  */
 async function handleGeminiSuggestShift() {
+    // 1. בדיקה שהמשתמש מחובר
+    if (gapi.client.getToken() === null) {
+        updateStatus('יש להתחבר עם חשבון Google כדי לקבל הצעות.', 'info', false);
+        return;
+    }
+
+    // 2. איסוף נתונים רלוונטיים מהעמוד
+    const weekId = getWeekId(DOMElements.datePicker.value);
+    const day = DOMElements.shiftModal.dataset.day;
+    const shiftType = DOMElements.shiftModal.dataset.shift;
+    const currentEmployee = allSchedules[weekId]?.[day]?.[shiftType]?.employee || 'none';
+    const otherShiftEmployee = DOMElements.shiftModal.dataset.otherShiftEmployee;
+
+    // 3. בניית ההנחיה (Prompt) שתשלח לשרת
+    const context = `אני מנהל סידור עבודה. העובדים הזמינים הם: ${EMPLOYEES.join(', ')}. המשמרת הנוכחית היא: יום ${day}, משמרת ${shiftType === 'morning' ? 'בוקר' : 'ערב'}. העובד המשובץ כרגע למשמרת זו הוא: ${currentEmployee === 'none' ? 'אף אחד' : currentEmployee}. העובד המשובץ למשמרת השנייה באותו יום הוא: ${otherShiftEmployee === 'none' ? 'אף אחד' : otherShiftEmployee}. אסור לשבץ את אותו עובד לשתי משמרות באותו יום. הצע לי עובד אחד מתאים למשמרת זו. השב רק עם שם העובד המוצע, ללא הסברים. אם אין עובד מתאים, השב "אף אחד".`;
+
+    updateStatus('מבקש הצעת שיבוץ מ-Gemini...', 'loading', true);
+
+    try {
+        // 4. שליחת הבקשה לשרת המאובטח (ולא ישירות ל-Google)
+        const response = await fetch('/.netlify/functions/suggest-shift', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            // שולחים רק את ההנחיה ב-body של הבקשה
+            body: JSON.stringify({ prompt: context })
+        });
+
+        // 5. טיפול בתשובת השרת
+        if (!response.ok) {
+            // אם השרת החזיר שגיאה, נציג אותה
+            const errorResult = await response.json();
+            throw new Error(errorResult.error || 'תקשורת עם השרת נכשלה');
+        }
+
+        const result = await response.json();
+        const suggestedEmployee = result.suggestion;
+
+        // 6. עדכון הממשק עם ההצעה שהתקבלה
+        const suggestedBtn = DOMElements.modalOptions.querySelector(`button[data-employee="${suggestedEmployee}"]`);
+        
+        if (suggestedBtn && !suggestedBtn.disabled) {
+            suggestedBtn.click(); // בחירת העובד המוצע
+            updateStatus(`Gemini הציע: ${suggestedEmployee}`, 'success', false);
+        } else if (suggestedEmployee === 'אף אחד') {
+            const noOneBtn = DOMElements.modalOptions.querySelector(`button[data-employee="none"]`);
+            if (noOneBtn) noOneBtn.click();
+            updateStatus('Gemini לא מצא שיבוץ מתאים.', 'info', false);
+        } else {
+            updateStatus(`Gemini הציע: ${suggestedEmployee}, אך הוא אינו זמין או קיים.`, 'info', false);
+        }
+
+    } catch (error) {
+        console.error('Error fetching shift suggestion:', error);
+        displayAPIError(error, 'שגיאה בקבלת הצעת שיבוץ.');
+    }
+}
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי לקבל הצעות.', 'info', false);
         return;
