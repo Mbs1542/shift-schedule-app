@@ -3,8 +3,7 @@ import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts } from './
 import { closeDifferencesModal, closeModal, closeVacationModal, displayDifferences, handleModalSave, showEmployeeSelectionModal, showVacationModal } from './components/modal.js';
 import { handleExportToExcel, handleSendEmail, renderSchedule } from './components/schedule.js';
 import { EMPLOYEES, DAYS, DEFAULT_SHIFT_TIMES, VACATION_EMPLOYEE_REPLACEMENT } from './config.js';
-import { processHilanetPdf, compareSchedules, handleUploadHilanetBtnClick, parseHilanetXLSXForMaor } from './services/hilanetParser.js';
-import { formatDate, getWeekId, getWeekDates } from './utils.js';
+import { processHilanetData, compareSchedules, handleUploadHilanetBtnClick, parseHilanetXLSXForMaor } from './services/hilanetParser.js';import { formatDate, getWeekId, getWeekDates } from './utils.js';
 
 // --- Global Variables & State Management ---
 export let gapiInited = false;
@@ -504,7 +503,7 @@ async function handleUploadHilanet(event) {
  */
 async function processPdfFile(file) {
     updateStatus('מעבד קובץ PDF...', 'loading', true);
-    currentHilanetShifts = await processHilanetPdf(file);
+    currentHilanetShifts = await processHilanetData(file);
     
     if (Object.keys(currentHilanetShifts).length > 0) {
         updateStatus('משווה סידורים...', 'loading', true);
@@ -902,4 +901,4 @@ function loadGoogleApiScripts() {
 }
 
 // Initialize the app logic after the DOM is fully loaded
-document.addEventListener('DOMContentLoaded', initializeAppLogic);
+document.addEventListener('DOMContentLoaded', initializeAppLogic);כ
