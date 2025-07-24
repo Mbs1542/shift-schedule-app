@@ -824,6 +824,26 @@ function initializeAppLogic() {
         monthlySummaryEmployeeSelect: document.getElementById('monthly-summary-employee-select')
         
     };
+    /**
+ * Loads the Google API and Google Identity Services scripts dynamically.
+ */
+function loadGoogleApiScripts() {
+    // Create script for Google API (gapi)
+    const gapiScript = document.createElement('script');
+    gapiScript.src = 'https://apis.google.com/js/api.js';
+    gapiScript.defer = true;
+    // The gapiLoaded function is in scope here and will be called on load
+    gapiScript.onload = () => gapiLoaded();
+    document.head.appendChild(gapiScript);
+
+    // Create script for Google Identity Services (gis)
+    const gisScript = document.createElement('script');
+    gisScript.src = 'https://accounts.google.com/gsi/client';
+    gisScript.defer = true;
+    // The gisLoaded function is in scope here and will be called on load
+    gisScript.onload = () => gisLoaded();
+    document.head.appendChild(gisScript);
+}
     if (DOMElements.uploadHilanetInput) DOMElements.uploadHilanetInput.addEventListener('change', handleUploadHilanet);
     // Populate employee select for monthly summary
     if (DOMElements.monthlySummaryEmployeeSelect) {
@@ -880,12 +900,6 @@ function initializeAppLogic() {
     const today = new Date().toISOString().split('T')[0];
     DOMElements.datePicker.value = getWeekId(today);
 }
-
-// --- App Initialization ---
-
-// Expose functions to global scope for HTML onload handlers
-window.gapiLoaded = gapiLoaded;
-window.gisLoaded = gisLoaded;
 
 // Initialize the app logic after the DOM is fully loaded
 document.addEventListener('DOMContentLoaded', initializeAppLogic);

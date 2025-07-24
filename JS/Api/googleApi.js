@@ -157,7 +157,6 @@ export async function saveData(weekId, scheduleDataForWeek) {
         DOMElements.scheduleCard.classList.remove('loading'); // Hide loading overlay in all cases
     }
 }
-}
 /**
  * Sends an email using the Gmail API.
  * @param {string} to - Recipient email address.
