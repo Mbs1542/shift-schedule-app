@@ -1,6 +1,12 @@
 import { DAYS } from "../config.js";
-import { updateStatus, DOMElements, allSchedules, getWeeklyShiftChartInstance, setWeeklyShiftChartInstance, getMonthlySummaryChartInstance, setMonthlySummaryChartInstance } from "../main.js";
+// --- תיקון: ייבוא רק מה שנחוץ באמת מ-main.js ---
+import { updateStatus, DOMElements, allSchedules } from "../main.js";
 import { getWeekId, formatDate, getWeekDates, formatMonthYear } from "../utils.js";
+
+// --- תיקון: ניהול הגרפים מתבצע באופן מקומי בתוך הקובץ הזה בלבד ---
+let weeklyChart = null;
+let monthlySummaryChart = null;
+
 
 /** Helper function to calculate duration in hours between two time strings (HH:MM:SS) */
 function calculateHours(start, end) {
@@ -24,29 +30,22 @@ export async function handleShowChart() {
         return;
     }
 
-    // Toggle visibility of the chart section
     const isHidden = DOMElements.chartCard.classList.contains('hidden');
 
     if (isHidden) {
-        // Show weekly chart
         DOMElements.chartCard.classList.remove('hidden');
-        // Set default employee for the monthly chart and trigger the update
         DOMElements.monthlySummaryEmployeeSelect.value = 'מאור';
-        updateMonthlySummaryChart(); // This will also show the monthly chart card
+        updateMonthlySummaryChart();
 
-        // ---  THIS IS THE NEW CODE FOR SMOOTH SCROLLING ---
-        // Scroll to the chart card after it's made visible
         setTimeout(() => {
             DOMElements.chartCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 100); // A small delay ensures the element is rendered before scrolling
+        }, 100);
 
     } else {
-        // Hide both charts
         DOMElements.chartCard.classList.add('hidden');
         DOMElements.monthlySummaryChartCard.classList.add('hidden');
-        // Reset the dropdown when hiding
         DOMElements.monthlySummaryEmployeeSelect.value = '';
-        updateStatus('', 'info', false); // Clear status
+        updateStatus('', 'info', false);
         return;
     }
 
@@ -61,18 +60,12 @@ export async function handleShowChart() {
         const dayData = scheduleDataForWeek[day] || {};
         if (dayData.morning && dayData.morning.employee && dayData.morning.employee !== 'none') {
             const emp = dayData.morning.employee;
-            if (!employeeShiftCounts[emp]) employeeShiftCounts[emp] = {
-                morning: 0,
-                evening: 0
-            };
+            if (!employeeShiftCounts[emp]) employeeShiftCounts[emp] = { morning: 0, evening: 0 };
             employeeShiftCounts[emp].morning += 1;
         }
         if (day !== 'שישי' && dayData.evening && dayData.evening.employee && dayData.evening.employee !== 'none') {
             const emp = dayData.evening.employee;
-            if (!employeeShiftCounts[emp]) employeeShiftCounts[emp] = {
-                morning: 0,
-                evening: 0
-            };
+            if (!employeeShiftCounts[emp]) employeeShiftCounts[emp] = { morning: 0, evening: 0 };
             employeeShiftCounts[emp].evening += 1;
         }
     });
@@ -107,38 +100,24 @@ export async function handleShowChart() {
             scales: {
                 y: {
                     beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'מספר משמרות'
-                    },
-                    ticks: {
-                        stepSize: 1
-                    }
+                    title: { display: true, text: 'מספר משמרות' },
+                    ticks: { stepSize: 1 }
                 },
                 x: {
-                    title: {
-                        display: true,
-                        text: 'עובדים'
-                    }
+                    title: { display: true, text: 'עובדים' }
                 }
             },
             plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
-                },
-                title: {
-                    display: true,
-                    text: `התפלגות משמרות לשבוע של ${formatDate(new Date(weekId))}`
-                }
+                legend: { display: true, position: 'top' },
+                title: { display: true, text: `התפלגות משמרות לשבוע של ${formatDate(new Date(weekId))}` }
             }
         }
     };
 
     const ctx = document.getElementById('shift-chart').getContext('2d');
-    if (getWeeklyShiftChartInstance()) getWeeklyShiftChartInstance().destroy(); // Destroy previous instance
-    const newWeeklyChart = new Chart(ctx, chartConfig);
-    setWeeklyShiftChartInstance(newWeeklyChart);
+    // --- תיקון: שימוש במשתנה מקומי ---
+    if (weeklyChart) weeklyChart.destroy();
+    weeklyChart = new Chart(ctx, chartConfig);
 
 
     updateStatus('גרף המשמרות הוצג בהצלחה!', 'success', false);
@@ -147,32 +126,27 @@ export async function handleShowChart() {
 export function updateMonthlySummaryChart() {
     const selectedEmployee = DOMElements.monthlySummaryEmployeeSelect.value;
     if (!selectedEmployee) {
-        if (getMonthlySummaryChartInstance()) getMonthlySummaryChartInstance().destroy();
-        setMonthlySummaryChartInstance(null);
+        // --- תיקון: שימוש במשתנה מקומי ---
+        if (monthlySummaryChart) monthlySummaryChart.destroy();
+        monthlySummaryChart = null;
         DOMElements.monthlySummaryChartCard.classList.add('hidden');
         return;
     }
 
-    const monthlyData = {}; // { 'YYYY-MM': { morning: X, evening: Y, totalHours: Z } }
+    const monthlyData = {};
 
-
-    // Populate monthlyData from allSchedules
     for (const weekId in allSchedules) {
         if (allSchedules.hasOwnProperty(weekId)) {
             const weekData = allSchedules[weekId];
             const weekDates = getWeekDates(new Date(weekId));
 
             weekDates.forEach(dateObj => {
-                const monthYearKey = dateObj.toISOString().substring(0, 7); // YYYY-MM
+                const monthYearKey = dateObj.toISOString().substring(0, 7);
                 const dayName = DAYS[dateObj.getDay()];
                 const dayData = weekData[dayName] || {};
 
                 if (!monthlyData[monthYearKey]) {
-                    monthlyData[monthYearKey] = {
-                        morning: 0,
-                        evening: 0,
-                        totalHours: 0
-                    };
+                    monthlyData[monthYearKey] = { morning: 0, evening: 0, totalHours: 0 };
                 }
 
                 if (dayData.morning && dayData.morning.employee === selectedEmployee) {
@@ -192,8 +166,9 @@ export function updateMonthlySummaryChart() {
     if (sortedMonths.length === 0) {
         updateStatus(`לא נמצאו נתונים חודשיים עבור ${selectedEmployee}.`, 'info');
         DOMElements.monthlySummaryChartCard.classList.add('hidden');
-        if (getMonthlySummaryChartInstance()) getMonthlySummaryChartInstance().destroy();
-        setMonthlySummaryChartInstance(null);
+        // --- תיקון: שימוש במשתנה מקומי ---
+        if (monthlySummaryChart) monthlySummaryChart.destroy();
+        monthlySummaryChart = null;
         return;
     }
 
@@ -223,37 +198,35 @@ export function updateMonthlySummaryChart() {
             scales: {
                 y: {
                     beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'מספר משמרות'
-                    },
-                    ticks: {
-                        stepSize: 1
-                    }
+                    title: { display: true, text: 'מספר משמרות' },
+                    ticks: { stepSize: 1 }
                 },
                 x: {
-                    title: {
-                        display: true,
-                        text: 'חודש'
-                    }
+                    title: { display: true, text: 'חודש' }
                 }
             },
             plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
-                },
-                title: {
-                    display: true,
-                    text: `סיכום חודשי ל${selectedEmployee} (סה"כ: ${totalHoursForAllMonths.toFixed(2)} שעות)`
-                }
+                legend: { display: true, position: 'top' },
+                title: { display: true, text: `סיכום חודשי ל${selectedEmployee} (סה"כ: ${totalHoursForAllMonths.toFixed(2)} שעות)` }
             }
         }
     };
 
     const ctx = document.getElementById('monthly-summary-chart').getContext('2d');
-    if (getMonthlySummaryChartInstance()) getMonthlySummaryChartInstance().destroy();
-    const newMonthlyChart = new Chart(ctx, chartConfig);
-    setMonthlySummaryChartInstance(newMonthlyChart);
+    // --- תיקון: שימוש במשתנה מקומי ---
+    if (monthlySummaryChart) monthlySummaryChart.destroy();
+    monthlySummaryChart = new Chart(ctx, chartConfig);
     DOMElements.monthlySummaryChartCard.classList.remove('hidden');
+}
+
+// --- פונקציה חדשה שניתן לייצא ולקרוא לה מ-main.js ---
+export function destroyAllCharts() {
+    if (weeklyChart) {
+        weeklyChart.destroy();
+        weeklyChart = null;
+    }
+    if (monthlySummaryChart) {
+        monthlySummaryChart.destroy();
+        monthlySummaryChart = null;
+    }
 }
