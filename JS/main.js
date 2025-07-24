@@ -908,4 +908,4 @@ function loadGoogleApiScripts() {
 }
 
 // Initialize the app logic after the DOM is fully loaded
-document.addEventListener('DOMContentLoaded', initializeAppLogic);כ
+document.addEventListener('DOMContentLoaded', initializeAppLogic);
