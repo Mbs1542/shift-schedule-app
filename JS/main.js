@@ -503,16 +503,23 @@ async function handleUploadHilanet(event) {
  */
 async function processPdfFile(file) {
     updateStatus('מעבד קובץ PDF...', 'loading', true);
-    currentHilanetShifts = await processHilanetData(file);
-    
-    if (Object.keys(currentHilanetShifts).length > 0) {
-        updateStatus('משווה סידורים...', 'loading', true);
-        const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
-        currentDifferences = compareSchedules(allGoogleSheetsShiftsForMaor, currentHilanetShifts);
-        displayDifferences(currentDifferences);
-        updateStatus('השוואת הסידורים הושלמה!', 'success');
-    } else {
-        updateStatus('לא נמצאו משמרות לניתוח בקובץ ה-PDF.', 'info');
+    try {
+        // --- תיקון: עוטפים את הקריאה ב-try...catch ---
+        currentHilanetShifts = await processHilanetData(file);
+
+        if (Object.keys(currentHilanetShifts).length > 0) {
+            updateStatus('משווה סידורים...', 'loading', true);
+            const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
+            currentDifferences = compareSchedules(allGoogleSheetsShiftsForMaor, currentHilanetShifts);
+            displayDifferences(currentDifferences);
+            updateStatus('השוואת הסידורים הושלמה!', 'success');
+        } else {
+            updateStatus('לא נמצאו משמרות לניתוח בקובץ ה-PDF.', 'info');
+        }
+    } catch (error) {
+        // --- תיקון: תפיסת השגיאה שנזרקה והצגתה למשתמש ---
+        console.error('Caught error from processHilanetData:', error);
+        displayAPIError(error, 'שגיאה בעיבוד קובץ ה-PDF');
     }
 }
 /**

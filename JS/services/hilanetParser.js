@@ -1,9 +1,14 @@
 import { DAYS, DEFAULT_SHIFT_TIMES } from "../config.js";
-import { displayAPIError, DOMElements, updateStatus } from "../main.js";
 
 /** Triggers the hidden file input when the "Upload Hilanet" button is clicked. */
 export function handleUploadHilanetBtnClick() {
-    DOMElements.uploadHilanetInput.click();
+    // This function needs access to DOMElements, which creates a circular dependency.
+    // It's better to keep this logic in main.js where DOMElements is defined.
+    // For now, we assume this will be called from an event listener in main.js
+    const uploadInput = document.getElementById('upload-hilanet-input');
+    if (uploadInput) {
+        uploadInput.click();
+    }
 }
 
 /**
@@ -13,6 +18,7 @@ export function handleUploadHilanetBtnClick() {
  * @param {number} detectedYear - The year for context.
  * @param {string} employeeName - The employee name for context.
  * @returns {Promise<Object[]|null>} A promise that resolves to an array of extracted shift objects, or null on error.
+ * @throws {Error} If there is a server or parsing error.
  */
 export async function callGeminiForShiftExtraction(imageDataBase64, detectedMonth, detectedYear, employeeName) {
     const prompt = `
@@ -30,7 +36,6 @@ export async function callGeminiForShiftExtraction(imageDataBase64, detectedMont
     `;
 
     try {
-        // Call our own serverless function
         const response = await fetch('/.netlify/functions/callGemini', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -38,8 +43,8 @@ export async function callGeminiForShiftExtraction(imageDataBase64, detectedMont
         });
 
         if (!response.ok) {
-            const errorBody = await response.json();
-            throw new Error(`Server function failed: ${errorBody.error || 'Unknown server error'}`);
+            const errorBody = await response.json().catch(() => ({ error: 'Unknown server error' }));
+            throw new Error(`Server function failed: ${errorBody.error}`);
         }
 
         const result = await response.json();
@@ -50,8 +55,7 @@ export async function callGeminiForShiftExtraction(imageDataBase64, detectedMont
                 return JSON.parse(jsonText);
             } catch (parseError) {
                 console.error("Failed to parse Gemini's JSON response:", parseError, "Raw JSON:", jsonText);
-                updateStatus("שגיאה: שירות ניתוח התמונה החזיר תשובה בפורמט לא צפוי.", "error");
-                return [];
+                throw new Error("שירות ניתוח התמונה החזיר תשובה בפורמט לא צפוי.");
             }
         } else {
             console.warn('Gemini response did not contain expected data structure:', result);
@@ -59,8 +63,7 @@ export async function callGeminiForShiftExtraction(imageDataBase64, detectedMont
         }
     } catch (error) {
         console.error("Error calling Netlify function or parsing response:", error);
-        displayAPIError(error, "שגיאה בתקשורת עם שירות ניתוח התמונה");
-        return [];
+        throw new Error(`שגיאה בתקשורת עם שירות ניתוח התמונה: ${error.message}`);
     }
 }
 
@@ -72,13 +75,13 @@ export async function callGeminiForShiftExtraction(imageDataBase64, detectedMont
  * @param {number} detectedYear - The detected year of the report.
  * @param {string} employeeName - The name of the employee.
  * @returns {Object} The structured shifts object, keyed by date.
+ * @throws {Error} If the Gemini data is not in the expected format.
  */
 export function structureShifts(geminiData, detectedMonth, detectedYear, employeeName) {
     const shifts = {};
     if (!Array.isArray(geminiData)) {
         console.error("Gemini response is not an array:", geminiData);
-        updateStatus('שגיאה: התשובה מ-Gemini לא הייתה בפורמט הצפוי.', 'error');
-        return {};
+        throw new Error('התשובה מ-Gemini לא הייתה בפורמט הצפוי (Array).');
     }
 
     for (const item of geminiData) {
@@ -127,15 +130,24 @@ export function structureShifts(geminiData, detectedMonth, detectedYear, employe
                 shiftType = 'evening';
             }
 
-            shifts[dateString][shiftType] = {
-                employee: employeeName,
-                start: entryTime,
-                end: exitTime
-            };
+            if (shiftType !== 'other') {
+                shifts[dateString][shiftType] = {
+                    employee: employeeName,
+                    start: entryTime,
+                    end: exitTime
+                };
+            }
         }
     }
     return shifts;
 }
+
+/**
+ * Parses XLSX data for a specific employee ('מאור').
+ * @param {Array<Array<string>>} xlsxData - The data parsed from the Excel file.
+ * @returns {Object} A structured object of shifts.
+ * @throws {Error} If required columns are missing in the Excel file.
+ */
 export function parseHilanetXLSXForMaor(xlsxData) {
     const shifts = {};
     if (!xlsxData || xlsxData.length < 2) return shifts;
@@ -147,9 +159,8 @@ export function parseHilanetXLSXForMaor(xlsxData) {
     const startTimeColIndex = headers.indexOf('שעת התחלה');
     const endTimeColIndex = headers.indexOf('שעת סיום');
 
-    if (dateColIndex === -1 || employeeNameColIndex === -1 || shiftTypeColIndex === -1 || startTimeColIndex === -1 || endTimeColIndex === -1) {
-        updateStatus('שגיאה: קובץ חילנט אינו מכיל את העמודות הנדרשות (תאריך, שם עובד, משמרת, שעת התחלה, שעת סעת סיום).', 'error', false);
-        return shifts;
+    if ([dateColIndex, employeeNameColIndex, shiftTypeColIndex, startTimeColIndex, endTimeColIndex].includes(-1)) {
+        throw new Error('קובץ חילנט אינו מכיל את העמודות הנדרשות (תאריך, שם עובד, משמרת, שעת התחלה, שעת סיום).');
     }
 
     for (let i = 1; i < xlsxData.length; i++) {
@@ -160,7 +171,7 @@ export function parseHilanetXLSXForMaor(xlsxData) {
         const startTime = row[startTimeColIndex];
         const endTime = row[endTimeColIndex];
 
-        if (employee === 'מאור' && rawDate !== undefined && shiftRaw !== undefined && startTime !== undefined && endTime !== undefined) {
+        if (employee === 'מאור' && rawDate && shiftRaw && startTime && endTime) {
             let dateString;
             if (typeof rawDate === 'number') {
                 const excelEpoch = new Date(Date.UTC(1899, 11, 30));
@@ -172,10 +183,7 @@ export function parseHilanetXLSXForMaor(xlsxData) {
                     const day = parts[0];
                     const month = parts[1];
                     const year = parts[2] || new Date().getFullYear();
-                    dateString = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-                } else {
-                    const parsedDate = new Date(rawDate);
-                    if (!isNaN(parsedDate.getTime())) dateString = parsedDate.toISOString().split('T')[0];
+                    dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 }
             }
             if (!dateString) continue;
@@ -202,6 +210,7 @@ export function parseHilanetXLSXForMaor(xlsxData) {
     }
     return shifts;
 }
+
 /**
  * Compares two schedule objects (Google Sheets vs. Hilanet) and identifies differences.
  * @param {Object} googleSheetsShifts - Shifts from Google Sheets.
@@ -211,117 +220,34 @@ export function parseHilanetXLSXForMaor(xlsxData) {
 export function compareSchedules(googleSheetsShifts, hilanetShifts) {
     const differences = [];
     const allDates = new Set([...Object.keys(googleSheetsShifts), ...Object.keys(hilanetShifts)]);
-    const sortedDates = Array.from(allDates).sort();
+    const sortedDates = Array.from(allDates).sort((a, b) => new Date(a) - new Date(b));
 
     sortedDates.forEach(date => {
         const gsDay = googleSheetsShifts[date] || {};
         const hlDay = hilanetShifts[date] || {};
         const dayName = DAYS[new Date(date).getDay()];
 
-        // Check morning shift
-        const gsMorning = gsDay.morning;
-        const hlMorning = hlDay.morning;
+        ['morning', 'evening'].forEach(shiftType => {
+            // Skip evening check on Shabbat
+            if (shiftType === 'evening' && dayName === 'שבת') return;
 
-        if (gsMorning && hlMorning) {
-            if (gsMorning.start !== hlMorning.start || gsMorning.end !== hlMorning.end || gsMorning.employee !== hlMorning.employee) {
-                differences.push({
-                    id: `${date}-morning`,
-                    type: 'changed',
-                    date,
-                    dayName,
-                    shiftType: 'morning',
-                    googleSheets: gsMorning,
-                    hilanet: hlMorning
-                });
-            }
-        } else if (gsMorning && !hlMorning) {
-            // Shift exists in Google Sheets but not in Hilanet (or Hilanet has it as 'none')
-            if (gsMorning.employee !== 'none') { // Only report if it was actually assigned to someone
-                differences.push({
-                    id: `${date}-morning`,
-                    type: 'removed',
-                    date,
-                    dayName,
-                    shiftType: 'morning',
-                    googleSheets: gsMorning,
-                    hilanet: {
-                        employee: 'none',
-                        start: '',
-                        end: ''
-                    }
-                });
-            }
-        } else if (!gsMorning && hlMorning) {
-            // Shift exists in Hilanet but not in Google Sheets (or Google Sheets has it as 'none')
-            if (hlMorning.employee !== 'none') { // Only report if it was actually assigned to someone
-                differences.push({
-                    id: `${date}-morning`,
-                    type: 'added',
-                    date,
-                    dayName,
-                    shiftType: 'morning',
-                    googleSheets: {
-                        employee: 'none',
-                        start: '',
-                        end: ''
-                    },
-                    hilanet: hlMorning
-                });
-            }
-        }
+            const gsShift = gsDay[shiftType];
+            const hlShift = hlDay[shiftType];
+            const id = `${date}-${shiftType}`;
 
-        // Check evening shift (and ensure it's not Saturday)
-        if (dayName !== 'שבת') {
-            const gsEvening = gsDay.evening;
-            const hlEvening = hlDay.evening;
+            const isGsShiftPresent = gsShift && gsShift.employee !== 'none';
+            const isHlShiftPresent = hlShift && hlShift.employee !== 'none';
 
-            if (gsEvening && hlEvening) {
-                if (gsEvening.start !== hlEvening.start || gsEvening.end !== hlEvening.end || gsEvening.employee !== hlEvening.employee) {
-                    differences.push({
-                        id: `${date}-evening`,
-                        type: 'changed',
-                        date,
-                        dayName,
-                        shiftType: 'evening',
-                        googleSheets: gsEvening,
-                        hilanet: hlEvening
-                    });
-                }
-            } else if (gsEvening && !hlEvening) {
-                if (gsEvening.employee !== 'none') {
-                    differences.push({
-                        id: `${date}-evening`,
-                        type: 'removed',
-                        date,
-                        dayName,
-                        shiftType: 'evening',
-                        googleSheets: gsEvening,
-                        hilanet: {
-                            employee: 'none',
-                            start: '',
-                            end: ''
-                        }
-                    });
-                }
-            } else if (!gsEvening && hlEvening) {
-                if (hlEvening.employee !== 'none') {
-                    differences.push({
-                        id: `${date}-evening`,
-                        type: 'added',
-                        date,
-                        dayName,
-                        shiftType: 'evening',
-                        googleSheets: {
-                            employee: 'none',
-                            start: '',
-                            end: ''
-                        },
-                        hilanet: hlEvening
-                    });
+            if (isGsShiftPresent && !isHlShiftPresent) {
+                differences.push({ id, type: 'removed', date, dayName, shiftType, googleSheets: gsShift, hilanet: { employee: 'none', start: '', end: '' } });
+            } else if (!isGsShiftPresent && isHlShiftPresent) {
+                differences.push({ id, type: 'added', date, dayName, shiftType, googleSheets: { employee: 'none', start: '', end: '' }, hilanet: hlShift });
+            } else if (isGsShiftPresent && isHlShiftPresent) {
+                if (gsShift.start !== hlShift.start || gsShift.end !== hlShift.end || gsShift.employee !== hlShift.employee) {
+                    differences.push({ id, type: 'changed', date, dayName, shiftType, googleSheets: gsShift, hilanet: hlShift });
                 }
             }
-        }
+        });
     });
     return differences;
 }
-
