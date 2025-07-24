@@ -30,27 +30,24 @@ export async function fetchData() {
     updateStatus('טוען נתונים...', 'loading', true);
 
     try {
-        // 1. קבלת הנתונים מה-API
         const response = await gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
             range: `${SHEET_NAME}!A:F`,
         });
 
-        // 2. תיקון: גישה נכונה למערך הנתונים
-        // הנתונים נמצאים בתוך response.result.values
         const values = response.result.values;
 
-        // 3. בדיקה שהתקבלו נתונים
-        if (!values || values.length === 0) {
+        // ---- תיקון כאן: מרוקנים את האובייקט הקיים במקום ליצור חדש ----
+        Object.keys(allSchedules).forEach(key => delete allSchedules[key]);
+
+        if (!values || values.length <= 1) { // Check for headers only or empty
             console.log('No data found.');
             updateStatus('לא נמצאו נתונים בגיליון. ניתן להתחיל להוסיף משמרות.', 'info');
-            allSchedules = {}; // איפוס הנתונים הקיימים
-            renderSchedule(getWeekId(DOMElements.datePicker.value)); // רינדור מחדש של לוח ריק
+            renderSchedule(getWeekId(DOMElements.datePicker.value));
             return;
         }
 
-        // --- המשך הלוגיקה הקיימת לעיבוד הנתונים ---
-        allSchedules = {}; // איפוס לפני טעינה מחדש
+        // ---- הלוגיקה ממשיכה מכאן, אבל בלי השורה הכפולה של האיפוס ----
         const headers = values[0];
         const weekIdIndex = headers.indexOf("week_id");
         const dayIndex = headers.indexOf("day");
@@ -61,6 +58,8 @@ export async function fetchData() {
 
         for (let i = 1; i < values.length; i++) {
             const row = values[i];
+            if (!row) continue; // Skip empty rows
+
             const weekId = row[weekIdIndex];
             const day = row[dayIndex];
             const shiftType = row[shiftTypeIndex];
@@ -85,7 +84,6 @@ export async function fetchData() {
 
     } catch (err) {
         console.error('Error fetching data from Google Sheets:', err);
-        // שיפור הודעת השגיאה למשתמש
         const errorMessage = err.result?.error?.message || err.message || 'תקלה לא ידועה';
         displayAPIError(err, `שגיאה בטעינת הנתונים מ-Google Sheets: ${errorMessage}`);
     }
