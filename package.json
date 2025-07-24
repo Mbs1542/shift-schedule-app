@@ -1,0 +1,14 @@
+{
+  "name": "shift-schedule-app",
+  "version": "1.0.0",
+  "description": "Shift scheduling application with Google Sheets and Gemini API.",
+  "main": "index.html",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "node-fetch": "^2.6.7"
+  }
+}
