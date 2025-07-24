@@ -828,11 +828,11 @@ function initializeAppLogic() {
         chartCard: document.getElementById('chart-card'),
         monthlySummaryChartCard: document.getElementById('monthly-summary-chart-card'),
         monthlySummaryEmployeeSelect: document.getElementById('monthly-summary-employee-select')
-        
     };
     /**
  * Loads the Google API and Google Identity Services scripts dynamically.
  */
+
 function loadGoogleApiScripts() {
     // Create script for Google API (gapi)
     const gapiScript = document.createElement('script');
@@ -905,6 +905,8 @@ function loadGoogleApiScripts() {
     // Set the date picker to the Sunday of the current week
     const today = new Date().toISOString().split('T')[0];
     DOMElements.datePicker.value = getWeekId(today);
+        loadGoogleApiScripts();
+
 }
 
 // Initialize the app logic after the DOM is fully loaded
