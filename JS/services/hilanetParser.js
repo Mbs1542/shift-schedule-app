@@ -251,3 +251,41 @@ export function compareSchedules(googleSheetsShifts, hilanetShifts) {
     });
     return differences;
 }
+
+// Helper function to render a PDF page to a canvas and get a data URL
+async function getPageImage(page) {
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+
+    await page.render({ canvasContext: context, viewport: viewport }).promise;
+    return canvas.toDataURL();
+}
+
+
+export async function processHilanetData(file) {
+    const pdf = await pdfjsLib.getDocument(URL.createObjectURL(file)).promise;
+    const page = await pdf.getPage(1);
+    const textContent = await page.getTextContent();
+    const rawText = textContent.items.map(item => item.str).join(' ');
+
+    const monthYearMatch = rawText.match(/לחודש (\d{2})\/(\d{2,4})/);
+    const employeeNameMatch = rawText.match(/(\S+ \d{9} \S+)/);
+
+    if (!monthYearMatch || !employeeNameMatch) {
+        throw new Error('לא ניתן היה לחלץ את שם העובד או החודש מהמסמך.');
+    }
+
+    const detectedMonth = parseInt(monthYearMatch[1], 10);
+    let detectedYear = parseInt(monthYearMatch[2], 10);
+    if (detectedYear < 100) {
+        detectedYear += 2000;
+    }
+    const employeeName = employeeNameMatch[1].split(' ')[0];
+    const imageDataBase64 = await getPageImage(page);
+    const geminiData = await callGeminiForShiftExtraction(imageDataBase64, detectedMonth, detectedYear, employeeName);
+
+    return structureShifts(geminiData, detectedMonth, detectedYear, employeeName);
+}
