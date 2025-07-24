@@ -20,62 +20,75 @@ export async function initializeGapiClient() {
     }
 }
 
-/** Fetches schedule data from Google Sheets. */
+// קובץ: JS/googleApi.js
+
 export async function fetchData() {
     if (gapi.client.getToken() === null) {
-        updateStatus('יש להתחבר עם חשבון Google כדי לטעון נתונים.', 'info', false);
+        updateStatus('יש להתחבר עם חשבון Google כדי לטעון נתונים.', 'info');
         return;
     }
     updateStatus('טוען נתונים...', 'loading', true);
-    DOMElements.scheduleCard.classList.add('loading'); // Show loading overlay
-    
+
     try {
+        // 1. קבלת הנתונים מה-API
         const response = await gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
             range: `${SHEET_NAME}!A:F`,
         });
-        
-        // Clear the existing schedules object without reassigning it
-        for (const key in allSchedules) {
-            delete allSchedules[key];
+
+        // 2. תיקון: גישה נכונה למערך הנתונים
+        // הנתונים נמצאים בתוך response.result.values
+        const values = response.result.values;
+
+        // 3. בדיקה שהתקבלו נתונים
+        if (!values || values.length === 0) {
+            console.log('No data found.');
+            updateStatus('לא נמצאו נתונים בגיליון. ניתן להתחיל להוסיף משמרות.', 'info');
+            allSchedules = {}; // איפוס הנתונים הקיימים
+            renderSchedule(getWeekId(DOMElements.datePicker.value)); // רינדור מחדש של לוח ריק
+            return;
         }
 
-        if (values && values.length > 1) {
-            const headers = values[0];
-            for (let i = 1; i < values.length; i++) {
-                const row = values[i];
-                if (row.length >= 6) {
-                    const weekId = row[headers.indexOf("week_id")] || '';
-                    const day = row[headers.indexOf("day")] || '';
-                    const shiftType = row[headers.indexOf("shift_type")] || '';
-                    const employee = row[headers.indexOf("employee")] || '';
-                    const startTime = row[headers.indexOf("start_time")] || '';
-                    const endTime = row[headers.indexOf("end_time")] || '';
+        // --- המשך הלוגיקה הקיימת לעיבוד הנתונים ---
+        allSchedules = {}; // איפוס לפני טעינה מחדש
+        const headers = values[0];
+        const weekIdIndex = headers.indexOf("week_id");
+        const dayIndex = headers.indexOf("day");
+        const shiftTypeIndex = headers.indexOf("shift_type");
+        const employeeIndex = headers.indexOf("employee");
+        const startTimeIndex = headers.indexOf("start_time");
+        const endTimeIndex = headers.indexOf("end_time");
 
-                    if (weekId && day && shiftType) {
-                        if (!allSchedules[weekId]) allSchedules[weekId] = {};
-                        if (!allSchedules[weekId][day]) allSchedules[weekId][day] = {};
-                        allSchedules[weekId][day][shiftType] = {
-                            employee: employee,
-                            start: startTime,
-                            end: endTime
-                        };
-                    }
+        for (let i = 1; i < values.length; i++) {
+            const row = values[i];
+            const weekId = row[weekIdIndex];
+            const day = row[dayIndex];
+            const shiftType = row[shiftTypeIndex];
+            const employee = row[employeeIndex];
+            const start = row[startTimeIndex];
+            const end = row[endTimeIndex];
+
+            if (weekId && day && shiftType && employee) {
+                if (!allSchedules[weekId]) {
+                    allSchedules[weekId] = {};
                 }
+                if (!allSchedules[weekId][day]) {
+                    allSchedules[weekId][day] = {};
+                }
+                allSchedules[weekId][day][shiftType] = { employee, start, end };
             }
         }
-        updateStatus('הנתונים נטענו בהצלחה!', 'success', false);
-        const currentPickerDate = DOMElements.datePicker.value;
-        renderSchedule(getWeekId(currentPickerDate));
+
+        const currentWeekId = getWeekId(DOMElements.datePicker.value);
+        renderSchedule(currentWeekId);
+        updateStatus('הנתונים נטענו בהצלחה!', 'success');
+
     } catch (err) {
-        displayAPIError(err, 'שגיאה בטעינת הנתונים מ-Google Sheets');
-        DOMElements.scheduleBody.innerHTML = '<tr><td colspan="4" class="p-3 text-center text-red-500">שגיאה בטעינת הנתונים.</td></tr>';
-        DOMElements.scheduleTitle.textContent = 'שגיאה בטעינת סידור';
+        console.error('Error fetching data from Google Sheets:', err);
+        // שיפור הודעת השגיאה למשתמש
+        const errorMessage = err.result?.error?.message || err.message || 'תקלה לא ידועה';
+        displayAPIError(err, `שגיאה בטעינת הנתונים מ-Google Sheets: ${errorMessage}`);
     }
-    finally {
-        DOMElements.scheduleCard.classList.remove('loading'); // Hide loading overlay
-    }
-    
 }
 /**
  * Saves schedule data for a specific week to Google Sheets.
