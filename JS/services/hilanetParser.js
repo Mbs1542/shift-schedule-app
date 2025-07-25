@@ -272,7 +272,7 @@ async function getPageImage(page) {
  * @throws {Error} If required data cannot be extracted
  */
 export function processHilanetData(docText) {
-    console.log('Processing Hilanet document text:', docText.substring(0, 500));
+    console.log('Processing Hilanet document text:', typeof docText === 'string' ? docText.substring(0, 500) : docText);
     
     try {
         // חילוץ שם עובד מהשורה: "עובד 783174212 בן סימון מאור"
