@@ -287,15 +287,21 @@ export function processHilanetData(docText) {
     }
     
     try {
-        // חילוץ שם עובד מהשורה: "עובד 783174212 בן סימון מאור"
-        // Updated regex to be more flexible in capturing the name until a newline
-        const namePattern = /עובד\s+\d+\s+([^\n]+)/;
+        // Updated regex to capture "First Name ID Last Name" format like "מאור 212471387 בן סימון"
+        // It captures the first name (e.g., מאור), skips the ID, and then captures the rest of the line as the last name part.
+        const namePattern = /(מאור|מור)\s+\d+\s*([^\n]*)/;
         const nameMatch = docText.match(namePattern);
         let employeeName = null;
         
-        if (nameMatch && nameMatch[1]) {
-            // נקה את השם מרווחים מיותרים ותווים לא רלוונטיים
-            employeeName = nameMatch[1].trim().replace(/\s+/g, ' ');
+        if (nameMatch) {
+            const firstName = nameMatch[1]; 
+            const lastNamePart = nameMatch[2].trim(); 
+            
+            if (lastNamePart) {
+                employeeName = `${firstName} ${lastNamePart}`; 
+            } else {
+                employeeName = firstName; 
+            }
             console.log('שם עובד שחולץ:', employeeName);
         }
 
