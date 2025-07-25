@@ -265,27 +265,70 @@ async function getPageImage(page) {
 }
 
 
-export async function processHilanetData(file) {
-    const pdf = await pdfjsLib.getDocument(URL.createObjectURL(file)).promise;
-    const page = await pdf.getPage(1);
-    const textContent = await page.getTextContent();
-    const rawText = textContent.items.map(item => item.str).join(' ');
+/**
+ * Processes Hilanet document text to extract employee and date information
+ * @param {string} docText - The extracted text from the PDF document
+ * @returns {Object} Object containing employeeName, detectedMonth, and detectedYear
+ * @throws {Error} If required data cannot be extracted
+ */
+export function processHilanetData(docText) {
+    console.log('Processing Hilanet document text:', docText.substring(0, 500));
+    
+    try {
+        // חילוץ שם עובד מהשורה: "עובד 783174212 בן סימון מאור"
+        const namePattern = /עובד\s+\d+\s+(.+?)(?=\s*%משרה|$)/;
+        const nameMatch = docText.match(namePattern);
+        let employeeName = null;
+        
+        if (nameMatch && nameMatch[1]) {
+            // נקה את השם מרווחים מיותרים ותווים לא רלוונטיים
+            employeeName = nameMatch[1].trim().replace(/\s+/g, ' ');
+            console.log('שם עובד שחולץ:', employeeName);
+        }
 
-    const monthYearMatch = rawText.match(/לחודש (\d{2})\/(\d{2,4})/);
-    const employeeNameMatch = rawText.match(/(\S+ \d{9} \S+)/);
+        // חילוץ תאריך מהשורה: "דו"ח נוכחות לחודש 52/70"
+        // הפורמט הוא: YY/MM (שנה/חודש)
+        const datePattern = /דו[""']ח\s*נוכחות\s*לחודש\s*(\d{2})\/(\d{2})/;
+        const dateMatch = docText.match(datePattern);
+        let detectedMonth = null;
+        let detectedYear = null;
 
-    if (!monthYearMatch || !employeeNameMatch) {
-        throw new Error('לא ניתן היה לחלץ את שם העובד או החודש מהמסמך.');
+        if (dateMatch) {
+            const yearTwoDigit = parseInt(dateMatch[1], 10); // 25 מתוך 52/70
+            detectedMonth = parseInt(dateMatch[2], 10); // 07 מתוך 52/70
+            
+            // המרת שנה דו-ספרתית לארבע ספרות
+            // 25 -> 2025, אבל אם זה מעל 50 זה יהיה 19XX
+            detectedYear = yearTwoDigit < 50 ? 2000 + yearTwoDigit : 1900 + yearTwoDigit;
+            
+            console.log('תאריך שחולץ:', { detectedMonth, detectedYear });
+        }
+
+        // ולידציה של הנתונים שחולצו
+        if (!employeeName || employeeName.length === 0) {
+            console.error('שם עובד לא נמצא. הטקסט שנסרק:', docText.substring(0, 300));
+            throw new Error('לא נמצא שם עובד במסמך');
+        }
+        
+        if (!detectedMonth || detectedMonth < 1 || detectedMonth > 12) {
+            console.error('חודש לא תקין:', detectedMonth);
+            throw new Error('חודש לא תקין במסמך');
+        }
+        
+        if (!detectedYear || detectedYear < 2000 || detectedYear > 2030) {
+            console.error('שנה לא תקינה:', detectedYear);
+            throw new Error('שנה לא תקינה במסמך');
+        }
+
+        console.log('נתונים שחולצו בהצלחה:', { employeeName, detectedMonth, detectedYear });
+        
+        return {
+            employeeName,
+            detectedMonth,
+            detectedYear
+        };
+    } catch (error) {
+        console.error('שגיאה בעיבוד נתוני חילנט:', error);
+        throw error;
     }
-
-    const detectedMonth = parseInt(monthYearMatch[1], 10);
-    let detectedYear = parseInt(monthYearMatch[2], 10);
-    if (detectedYear < 100) {
-        detectedYear += 2000;
-    }
-    const employeeName = employeeNameMatch[1].split(' ')[0];
-    const imageDataBase64 = await getPageImage(page);
-    const geminiData = await callGeminiForShiftExtraction(imageDataBase64, detectedMonth, detectedYear, employeeName);
-
-    return structureShifts(geminiData, detectedMonth, detectedYear, employeeName);
 }
