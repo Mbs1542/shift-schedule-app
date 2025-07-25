@@ -1,34 +1,40 @@
-// קובץ חדש: netlify/functions/suggest-shift.js
+// שם הקובץ: netlify/functions/suggest-shift.js
 
 const fetch = require('node-fetch');
 
 exports.handler = async function(event) {
-    // ודא שהבקשה היא מסוג POST
+    // 1. וידוא שהבקשה היא מסוג POST
     if (event.httpMethod !== 'POST') {
         return { statusCode: 405, body: 'Method Not Allowed' };
     }
 
     try {
-        const { prompt } = JSON.parse(event.body);
-
-        // קריאה מאובטחת למפתח ה-API ממשתני הסביבה של Netlify
+        // 2. קריאה מאובטחת של מפתח ה-API ממשתני הסביבה
         const apiKey = process.env.GEMINI_API_KEY;
 
         if (!apiKey) {
-            return { statusCode: 500, body: JSON.stringify({ error: "API key is not configured" }) };
+            console.error("שגיאה קריטית: משתנה הסביבה GEMINI_API_KEY אינו מוגדר ב-Netlify!");
+            return { statusCode: 500, body: JSON.stringify({ error: "Server configuration error." }) };
         }
-         if (!prompt) {
-            return { statusCode: 400, body: JSON.stringify({ error: "Prompt is missing" }) };
+        
+        // 3. חילוץ ה-prompt מגוף הבקשה
+        const { prompt } = JSON.parse(event.body);
+
+        if (!prompt) {
+            return { statusCode: 400, body: JSON.stringify({ error: "Bad Request: 'prompt' is missing." }) };
         }
 
+        // 4. הכנת הבקשה ל-Gemini API
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-
+        
         const payload = {
             contents: [{
                 parts: [{ text: prompt }]
             }]
         };
 
+        // 5. שליחת הבקשה ל-Gemini
+        console.log("שולח בקשה ל-Gemini..."); // הודעה שתופיע בלוגים
         const geminiResponse = await fetch(apiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -36,22 +42,27 @@ exports.handler = async function(event) {
         });
 
         if (!geminiResponse.ok) {
-            const errorBody = await geminiResponse.text();
-            console.error("Gemini API Error:", errorBody);
-            return { statusCode: 500, body: JSON.stringify({ error: 'Failed to fetch from Gemini' })};
+            const errorText = await geminiResponse.text();
+            console.error("שגיאה שהתקבלה מ-Gemini API:", errorText);
+            return { 
+                statusCode: geminiResponse.status, 
+                body: JSON.stringify({ error: `Failed to fetch from Gemini API. ${errorText}` })
+            };
         }
 
         const result = await geminiResponse.json();
+        console.log("תשובה מ-Gemini התקבלה בהצלחה.");
+
+        // 6. חילוץ ההצעה ושליחתה בחזרה לאתר
         const suggestion = result.candidates[0].content.parts[0].text.trim();
 
-        // החזרת ההצעה הנקייה חזרה לדפדפן
         return {
             statusCode: 200,
             body: JSON.stringify({ suggestion: suggestion })
         };
 
     } catch (error) {
-        console.error("Error in suggest-shift function:", error);
+        console.error("אירעה שגיאה לא צפויה בפונקציה:", error);
         return {
             statusCode: 500,
             body: JSON.stringify({ error: error.message })

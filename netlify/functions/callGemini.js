@@ -1,8 +1,7 @@
-// This is a Node.js function, so we use 'require'
 const fetch = require('node-fetch');
 
 exports.handler = async function(event) {
-    // Only allow POST requests
+    // ודא שהבקשה היא מסוג POST
     if (event.httpMethod !== 'POST') {
         return { statusCode: 405, body: 'Method Not Allowed' };
     }
@@ -10,12 +9,18 @@ exports.handler = async function(event) {
     try {
         const { imageDataBase64, prompt } = JSON.parse(event.body);
         
-        // Securely access the API key from Netlify's environment variables
+        // קריאה מאובטחת למפתח ה-API ממשתני הסביבה של Netlify
         const apiKey = process.env.GEMINI_API_KEY;
 
+        // בדיקה אם המפתח הוגדר
         if (!apiKey) {
             console.error("Gemini API key is not configured in Netlify.");
             return { statusCode: 500, body: JSON.stringify({ error: "Server configuration error: API key is missing." }) };
+        }
+        
+        // בדיקה אם הנתונים מהלקוח הגיעו
+        if (!imageDataBase64 || !prompt) {
+             return { statusCode: 400, body: JSON.stringify({ error: "Missing imageDataBase64 or prompt in request." }) };
         }
 
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
@@ -38,6 +43,7 @@ exports.handler = async function(event) {
             body: JSON.stringify(payload)
         });
 
+        // טיפול בתשובת שגיאה מה-API של Gemini
         if (!geminiResponse.ok) {
             const errorBody = await geminiResponse.json();
             console.error("Gemini API Error:", errorBody);
@@ -49,13 +55,13 @@ exports.handler = async function(event) {
 
         const result = await geminiResponse.json();
         
-        // Return the successful result back to the client
         return {
             statusCode: 200,
             body: JSON.stringify(result)
         };
 
     } catch (error) {
+        // טיפול בשגיאות כלליות בפונקציה
         console.error("Error in Netlify function:", error);
         return {
             statusCode: 500,

@@ -301,6 +301,11 @@ export async function handleCreateCalendarEvents(selectedEmployees) {
     } else {
         updateStatus('לא נמצאו משמרות לעובדים הנבחרים.', 'info', false);
     }
+    console.log("callGemini.js: Function started.");
+    console.log("callGemini.js: Event body length:", event.body ? event.body.length : 'empty');
+    // אם אתה מעביר את תוכן ה-PDF כ-Base64 בתוך ה-prompt:
+    // const { prompt, pdfContentBase64 } = JSON.parse(event.body);
+    // console.log("callGemini.js: Received PDF content (first 50 chars):", pdfContentBase64 ? pdfContentBase64.substring(0, 50) : 'none');
 }
 /**
  * Deletes Google Calendar events previously created by the app for selected employees.
