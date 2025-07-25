@@ -272,7 +272,9 @@ async function getPageImage(page) {
  * @throws {Error} If required data cannot be extracted
  */
 export function processHilanetData(docText) {
-    console.log('Processing Hilanet document text:', typeof docText === 'string' ? docText.substring(0, 500) : docText);
+    console.log('--- Full Document Text for Hilanet Processing ---');
+    console.log(docText); // Add this line
+    console.log('--- End of Document Text ---');
     
     // Validate that docText is a string
     if (typeof docText !== 'string') {
