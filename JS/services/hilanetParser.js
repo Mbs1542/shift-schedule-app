@@ -288,7 +288,8 @@ export function processHilanetData(docText) {
     
     try {
         // חילוץ שם עובד מהשורה: "עובד 783174212 בן סימון מאור"
-        const namePattern = /עובד\s+\d+\s+(.+?)(?=\s*%משרה|$)/;
+        // Updated regex to be more flexible in capturing the name until a newline
+        const namePattern = /עובד\s+\d+\s+([^\n]+)/;
         const nameMatch = docText.match(namePattern);
         let employeeName = null;
         
