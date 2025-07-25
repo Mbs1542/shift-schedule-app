@@ -397,10 +397,70 @@ async function handleUploadHilanet(event) {
     }
 }
 
-async function processPdfFile(file) {
+// Alternative approach: Process PDF as images for better table extraction
+async function processPdfFileAsImages(file) {
     updateStatus('מעבד קובץ PDF...', 'loading', true);
     try {
-        currentHilanetShifts = await processHilanetData(file);
+        const fileReader = new FileReader();
+        const arrayBuffer = await new Promise((resolve, reject) => {
+            fileReader.onload = e => resolve(e.target.result);
+            fileReader.onerror = reject;
+            fileReader.readAsArrayBuffer(file);
+        });
+
+        const typedArray = new Uint8Array(arrayBuffer);
+        const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
+        
+        // First, extract text from PDF to get employee info and dates
+        let fullText = '';
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(' ');
+            fullText += pageText + '\n';
+        }
+        
+        console.log('Extracted PDF text for metadata:', fullText.substring(0, 500));
+        
+        // Extract employee info and dates from text
+        const { employeeName, detectedMonth, detectedYear } = processHilanetData(fullText);
+        
+        // Now process pages as images for table extraction
+        const allShifts = {};
+        
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            updateStatus(`מעבד עמוד ${pageNum} מתוך ${pdf.numPages}...`, 'loading', true);
+            
+            const page = await pdf.getPage(pageNum);
+            const imageDataUrl = await getPageImage(page);
+            
+            try {
+                const shiftsFromPage = await callGeminiForShiftExtraction(
+                    imageDataUrl, 
+                    detectedMonth, 
+                    detectedYear, 
+                    employeeName
+                );
+                
+                if (shiftsFromPage && Array.isArray(shiftsFromPage)) {
+                    const structuredShifts = structureShifts(
+                        shiftsFromPage, 
+                        detectedMonth, 
+                        detectedYear, 
+                        employeeName
+                    );
+                    
+                    // Merge shifts from this page
+                    Object.assign(allShifts, structuredShifts);
+                }
+            } catch (pageError) {
+                console.warn(`Error processing page ${pageNum}:`, pageError);
+                // Continue with other pages
+            }
+        }
+        
+        currentHilanetShifts = allShifts;
+        
         if (Object.keys(currentHilanetShifts).length > 0) {
             updateStatus('משווה סידורים...', 'loading', true);
             const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
@@ -410,10 +470,23 @@ async function processPdfFile(file) {
         } else {
             updateStatus('לא נמצאו משמרות לניתוח בקובץ ה-PDF.', 'info');
         }
+        
     } catch (error) {
-        console.error('Caught error from processHilanetData:', error);
+        console.error('Error processing PDF:', error);
         displayAPIError(error, 'שגיאה בעיבוד קובץ ה-PDF');
     }
+}
+
+// Helper function to render a PDF page to a canvas and get a data URL
+async function getPageImage(page) {
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+
+    await page.render({ canvasContext: context, viewport: viewport }).promise;
+    return canvas.toDataURL();
 }
 
 async function processXlsxFile(file) {
