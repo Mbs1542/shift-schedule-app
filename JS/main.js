@@ -372,6 +372,8 @@ async function handleVacationShift(vacationingEmployee, startDateString, endDate
     }
 }
 
+// ... (rest of your main.js code)
+
 async function handleUploadHilanet(event) {
     if (isProcessing) {
         updateStatus('תהליך אחר כבר רץ, אנא המתן.', 'info');
@@ -383,7 +385,8 @@ async function handleUploadHilanet(event) {
     setProcessingStatus(true);
     try {
         if (file.type === 'application/pdf') {
-            await processPdfFile(file);
+            // Call the function that correctly extracts text from PDF
+            await processPdfFileAsImages(file);
         } else if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || file.type === 'application/vnd.ms-excel') {
             await processXlsxFile(file);
         } else {
@@ -396,6 +399,11 @@ async function handleUploadHilanet(event) {
         setProcessingStatus(false);
     }
 }
+
+// Keep the existing processPdfFileAsImages function as is, it's correct.
+// Make sure to remove or comment out the incorrect processPdfFile function if it still exists.
+
+// ... (rest of your main.js code)
 
 // Alternative approach: Process PDF as images for better table extraction
 async function processPdfFileAsImages(file) {
