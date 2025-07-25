@@ -274,6 +274,18 @@ async function getPageImage(page) {
 export function processHilanetData(docText) {
     console.log('Processing Hilanet document text:', typeof docText === 'string' ? docText.substring(0, 500) : docText);
     
+    // Validate that docText is a string
+    if (typeof docText !== 'string') {
+        console.error('docText is not a string:', typeof docText, docText);
+        throw new Error('הטקסט שחולץ מהמסמך אינו תקין');
+    }
+    
+    // Check if docText is empty
+    if (!docText || docText.trim().length === 0) {
+        console.error('docText is empty or contains only whitespace');
+        throw new Error('לא הצלחנו לחלץ טקסט מהמסמך');
+    }
+    
     try {
         // חילוץ שם עובד מהשורה: "עובד 783174212 בן סימון מאור"
         const namePattern = /עובד\s+\d+\s+(.+?)(?=\s*%משרה|$)/;
