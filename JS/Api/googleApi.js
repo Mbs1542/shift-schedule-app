@@ -120,8 +120,8 @@ export async function saveData(weekId, scheduleDataForWeek) {
         let dataToWrite = [...rowsToKeep, ...newRowsForWeek];
         const dayOrder = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
         
-        // Sort data correctly, keeping headers at the top
-        const headerRow = dataToWrite.shift();
+        // --- תיקון לוגיקת המיון ---
+        const headerRow = dataToWrite.shift(); // שמור את הכותרות בצד
         dataToWrite.sort((a, b) => {
             const weekIdA = a[headers.indexOf("week_id")];
             const weekIdB = b[headers.indexOf("week_id")];
@@ -132,7 +132,7 @@ export async function saveData(weekId, scheduleDataForWeek) {
             const dayB = b[headers.indexOf("day")];
             return dayOrder.indexOf(dayA) - dayOrder.indexOf(dayB);
         });
-        dataToWrite.unshift(headerRow);
+        dataToWrite.unshift(headerRow); // החזר את הכותרות להתחלה
 
         await gapi.client.sheets.spreadsheets.values.clear({
             spreadsheetId: SPREADSHEET_ID,
