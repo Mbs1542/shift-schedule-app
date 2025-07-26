@@ -769,15 +769,11 @@ function initializeAppLogic() {
         monthlySummaryChartCard: document.getElementById('monthly-summary-chart-card'),
         monthlySummaryEmployeeSelect: document.getElementById('monthly-summary-employee-select'),
         customCloseDiffModalBtn: document.getElementById('custom-close-diff-modal-btn')
-    }; 
+    };
 
-    
     if (DOMElements.customCloseDiffModalBtn) {
         DOMElements.customCloseDiffModalBtn.addEventListener('click', closeDifferencesModal);
     }
-
-    
-}
 
     function loadGoogleApiScripts() {
         const gapiScript = document.createElement('script');
@@ -845,8 +841,7 @@ function initializeAppLogic() {
 
     const today = new Date().toISOString().split('T')[0];
     DOMElements.datePicker.value = getWeekId(today);
-    
-    loadGoogleApiScripts();
-}
 
-document.addEventListener('DOMContentLoaded', initializeAppLogic);
+    loadGoogleApiScripts();
+
+} 
