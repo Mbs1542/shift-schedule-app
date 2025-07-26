@@ -156,6 +156,27 @@ export async function saveData(weekId, scheduleDataForWeek) {
 }
 
 /**
+ * Sends an email using the Gmail API.
+ */
+export async function sendEmailWithGmailApi(to, subject, messageBody) {
+    if (gapi.client.getToken() === null) {
+        updateStatus('יש להתחבר עם חשבון Google כדי לשלוח מייל.', 'info', false);
+        return;
+    }
+    updateStatus('שולח מייל...', 'loading', true);
+    try {
+        const rawMessage = createMessage(to, subject, messageBody);
+        await gapi.client.gmail.users.messages.send({
+            'userId': 'me',
+            'resource': { 'raw': rawMessage }
+        });
+        updateStatus('המייל נשלח בהצלחה!', 'success', false);
+    } catch (err) {
+        displayAPIError(err, 'שגיאה בשליחת המייל דרך Gmail API');
+    }
+}
+
+/**
  * Creates Google Calendar events for selected employees' shifts.
  */
 export async function handleCreateCalendarEvents(selectedEmployees) {
