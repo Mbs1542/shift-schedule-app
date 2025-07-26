@@ -1,4 +1,4 @@
-import { fetchData, handleCreateCalendarEvents, handleDeleteCalendarEvents, initializeGapiClient, saveData } from './Api/googleApi.js';
+import { fetchData, handleCreateCalendarEvents, handleDeleteCalendarEvents, initializeGapiClient, saveFullSchedule } from './Api/googleApi.js';
 import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts } from './components/charts.js';
 import { closeDifferencesModal, closeModal, closeVacationModal, displayDifferences, handleModalSave, showEmployeeSelectionModal, showVacationModal } from './components/modal.js';
 import { handleExportToExcel, handleSendEmail, renderSchedule } from './components/schedule.js';
@@ -611,59 +611,6 @@ async function handleImportSelectedHilanetShifts() {
         updateStatus('הייבוא הושלם והפערים עודכנו!', 'success');
     });
 }
-async function saveMultipleShifts(shiftsToImport) {
-    // בדיקה ראשונית אם המשתמש מחובר
-    if (gapi.client.getToken() === null) {
-        updateStatus('יש להתחבר עם חשבון Google כדי לייבא משמרות.', 'info', false);
-        return;
-    }
-
-    updateStatus('מייבא משמרות...', 'loading', true);
-
-    try {
-        // שלב 1: קבץ את כל השינויים הנדרשים לפי שבוע (weekId)
-        const changesByWeek = {};
-        for (const dateString in shiftsToImport) {
-            const weekId = getWeekId(dateString);
-            if (!changesByWeek[weekId]) {
-                changesByWeek[weekId] = {};
-            }
-            // הוסף את כל השינויים של אותו תאריך לשבוע המתאים
-            changesByWeek[weekId][dateString] = shiftsToImport[dateString];
-        }
-
-        // שלב 2: עבור כל שבוע שהושפע מהשינויים, בצע שמירה
-        for (const weekId in changesByWeek) {
-            const weeklyChanges = changesByWeek[weekId];
-            
-            // ודא שהשבוע קיים בזיכרון המקומי (allSchedules)
-            if (!allSchedules[weekId]) {
-                allSchedules[weekId] = {};
-            }
-            
-            // עדכן את הנתונים בזיכרון המקומי עם השינויים החדשים
-            for (const dateString in weeklyChanges) {
-                const dayName = DAYS[new Date(dateString).getDay()];
-                if (!allSchedules[weekId][dayName]) {
-                    allSchedules[weekId][dayName] = {};
-                }
-                const dayChanges = weeklyChanges[dateString];
-                for (const shiftType in dayChanges) {
-                    allSchedules[weekId][dayName][shiftType] = dayChanges[shiftType];
-                }
-            }
-
-            // שלב 3: השתמש בפונקציה האמינה 'saveData' כדי לשמור את כל נתוני השבוע המעודכן
-            await saveData(weekId, allSchedules[weekId]);
-        }
-
-        updateStatus('המשמרות יובאו בהצלחה!', 'success', false);
-
-    } catch (err) {
-        displayAPIError(err, 'שגיאה בייבוא המשמרות ל-Google Sheets');
-    }
-}
-
 function handleDownloadDifferences() {
     if (currentDifferences.length === 0) {
         updateStatus('אין פערים להורדה.', 'info', false);
