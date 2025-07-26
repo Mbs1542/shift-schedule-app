@@ -262,8 +262,8 @@ export function displayDifferences(differences) {
             });
         });
         // התחלה במצב מסומן
-        selectAllCheckbox.checked = true;
-        document.querySelectorAll('.difference-checkbox').forEach(checkbox => checkbox.checked = true);
+        //selectAllCheckbox.checked = true;
+        //document.querySelectorAll('.difference-checkbox').forEach(checkbox => checkbox.checked = true);
     }
 
     DOMElements.differencesModal.classList.remove('hidden');

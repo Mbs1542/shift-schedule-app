@@ -156,6 +156,8 @@ function signOut() {
             updateSigninStatus(false);
             DOMElements.scheduleBody.innerHTML = '';
             DOMElements.scheduleTitle.textContent = 'התחבר כדי לראות את הסידור';
+            closeDifferencesModal(); // סוגר את חלון הפערים
+            if (DOMElements.chartCard) DOMElements.chartCard.classList.add('hidden'); // מסתיר את הגרפים
         });
     }
 }
