@@ -157,7 +157,6 @@ export function structureShifts(shifts, month, year, employeeName) {
  * פונקציית השוואה (נשארת ללא שינוי)
  */
 export function compareSchedules(googleSheetsShifts, hilanetShifts) {
-    // ... קוד ההשוואה שלך נשאר כאן ...
     const differences = [];
     const allDates = new Set([...Object.keys(googleSheetsShifts), ...Object.keys(hilanetShifts)]);
 
@@ -191,7 +190,6 @@ export function handleUploadHilanetBtnClick() {
 }
 
 export function parseHilanetXLSXForMaor(data) {
-    // ... קוד ה-XLSX שלך נשאר כאן ...
     const shifts = {};
     let employeeName = "מאור";
     let month = -1, year = -1;
@@ -212,10 +210,8 @@ export function parseHilanetXLSXForMaor(data) {
     }
 
     data.forEach(row => {
-        // Find a valid day number (numeric, first column)
         const day = parseInt(row[0], 10);
         if (!isNaN(day) && day >= 1 && day <= 31) {
-            // Find start and end times in the row
             const timePattern = /\d{1,2}:\d{2}/;
             const times = row.filter(cell => typeof cell === 'string' && timePattern.test(cell));
 

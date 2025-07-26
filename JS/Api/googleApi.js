@@ -1,5 +1,6 @@
-import { SPREADSHEET_ID, SHEET_NAME, DAYS, DEFAULT_SHIFT_TIMES } from "../config.js";
-import { gapiInited, maybeInitAuthClient, displayAPIError, allSchedules, DOMElements, updateStatus, createMessage, allCreatedCalendarEvents, showCustomConfirmation } from "../main.js";
+// קובץ: JS/Api/googleApi.js
+import { SPREADSHEET_ID, SHEET_NAME, DAYS } from "../config.js";
+import { displayAPIError, allSchedules, DOMElements, updateStatus, createMessage, showCustomConfirmation } from "../main.js";
 import { renderSchedule } from '../components/schedule.js';
 import { getWeekDates, getWeekId } from "../utils.js";
 
@@ -20,8 +21,6 @@ export async function initializeGapiClient() {
     }
 }
 
-// קובץ: JS/googleApi.js
-
 export async function fetchData() {
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי לטעון נתונים.', 'info');
@@ -36,18 +35,15 @@ export async function fetchData() {
         });
 
         const values = response.result.values;
-
-        // ---- תיקון כאן: מרוקנים את האובייקט הקיים במקום ליצור חדש ----
         Object.keys(allSchedules).forEach(key => delete allSchedules[key]);
 
-        if (!values || values.length <= 1) { // Check for headers only or empty
+        if (!values || values.length <= 1) {
             console.log('No data found.');
             updateStatus('לא נמצאו נתונים בגיליון. ניתן להתחיל להוסיף משמרות.', 'info');
             renderSchedule(getWeekId(DOMElements.datePicker.value));
             return;
         }
 
-        // ---- הלוגיקה ממשיכה מכאן, אבל בלי השורה הכפולה של האיפוס ----
         const headers = values[0];
         const weekIdIndex = headers.indexOf("week_id");
         const dayIndex = headers.indexOf("day");
@@ -58,7 +54,7 @@ export async function fetchData() {
 
         for (let i = 1; i < values.length; i++) {
             const row = values[i];
-            if (!row) continue; // Skip empty rows
+            if (!row || row.length === 0) continue;
 
             const weekId = row[weekIdIndex];
             const day = row[dayIndex];
@@ -68,12 +64,8 @@ export async function fetchData() {
             const end = row[endTimeIndex];
 
             if (weekId && day && shiftType && employee) {
-                if (!allSchedules[weekId]) {
-                    allSchedules[weekId] = {};
-                }
-                if (!allSchedules[weekId][day]) {
-                    allSchedules[weekId][day] = {};
-                }
+                if (!allSchedules[weekId]) allSchedules[weekId] = {};
+                if (!allSchedules[weekId][day]) allSchedules[weekId][day] = {};
                 allSchedules[weekId][day][shiftType] = { employee, start, end };
             }
         }
@@ -88,6 +80,7 @@ export async function fetchData() {
         displayAPIError(err, `שגיאה בטעינת הנתונים מ-Google Sheets: ${errorMessage}`);
     }
 }
+
 /**
  * Saves schedule data for a specific week to Google Sheets.
  */
@@ -97,7 +90,7 @@ export async function saveData(weekId, scheduleDataForWeek) {
         return;
     }
     updateStatus('שומר...', 'loading', true);
-    DOMElements.scheduleCard.classList.add('loading'); // Show loading overlay
+    DOMElements.scheduleCard.classList.add('loading');
     try {
         const response = await gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
@@ -107,7 +100,7 @@ export async function saveData(weekId, scheduleDataForWeek) {
         const defaultHeaders = ["week_id", "day", "shift_type", "employee", "start_time", "end_time"];
 
         if (existingValues.length === 0 || !defaultHeaders.every(h => existingValues[0].includes(h))) {
-            existingValues.unshift(defaultHeaders);
+            existingValues = [defaultHeaders];
         }
         const headers = existingValues[0];
 
@@ -118,31 +111,28 @@ export async function saveData(weekId, scheduleDataForWeek) {
             Object.keys(scheduleDataForWeek[day]).forEach(shiftType => {
                 const shiftDetails = scheduleDataForWeek[day][shiftType];
                 const employee = shiftDetails.employee;
-                const startTime = shiftDetails.start || '';
-                const endTime = shiftDetails.end || '';
                 if (employee && employee !== 'none') {
-                    newRowsForWeek.push([weekId, day, shiftType, employee, startTime, endTime]);
+                    newRowsForWeek.push([weekId, day, shiftType, employee, shiftDetails.start || '', shiftDetails.end || '']);
                 }
             });
         });
 
         let dataToWrite = [...rowsToKeep, ...newRowsForWeek];
-
         const dayOrder = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+        
+        // Sort data correctly, keeping headers at the top
+        const headerRow = dataToWrite.shift();
         dataToWrite.sort((a, b) => {
             const weekIdA = a[headers.indexOf("week_id")];
             const weekIdB = b[headers.indexOf("week_id")];
-            const dayA = a[headers.indexOf("day")];
-            const dayB = b[headers.indexOf("day")];
-
             if (weekIdA < weekIdB) return -1;
             if (weekIdA > weekIdB) return 1;
+
+            const dayA = a[headers.indexOf("day")];
+            const dayB = b[headers.indexOf("day")];
             return dayOrder.indexOf(dayA) - dayOrder.indexOf(dayB);
         });
-
-        if (dataToWrite[0] !== headers) {
-            dataToWrite = [headers, ...dataToWrite.filter(row => row !== headers)];
-        }
+        dataToWrite.unshift(headerRow);
 
         await gapi.client.sheets.spreadsheets.values.clear({
             spreadsheetId: SPREADSHEET_ID,
@@ -154,221 +144,88 @@ export async function saveData(weekId, scheduleDataForWeek) {
                 spreadsheetId: SPREADSHEET_ID,
                 range: `${SHEET_NAME}!A1`,
                 valueInputOption: 'RAW',
-                resource: {
-                    values: dataToWrite
-                },
+                resource: { values: dataToWrite },
             });
         }
         updateStatus('השינויים נשמרו בהצלחה!', 'success', false);
-        // REMOVED: updateMonthlySummaryChart();
-     updateStatus('השינויים נשמרו בהצלחה!', 'success', false);
     } catch (err) {
         displayAPIError(err, 'שגיאה בשמירת הנתונים ל-Google Sheets');
     } finally {
-        DOMElements.scheduleCard.classList.remove('loading'); // Hide loading overlay in all cases
+        DOMElements.scheduleCard.classList.remove('loading');
     }
 }
-/**
- * Sends an email using the Gmail API.
- * @param {string} to - Recipient email address.
- * @param {string} subject - Email subject.
- * @param {string} messageBody - Email body (HTML content).
- */
-export async function sendEmailWithGmailApi(to, subject, messageBody) {
-    if (gapi.client.getToken() === null) {
-        updateStatus('יש להתחבר עם חשבון Google כדי לשלוח מייל.', 'info', false);
-        return;
-    }
-    updateStatus('שולח מייל...', 'loading', true);
-    try {
-        const rawMessage = createMessage(to, subject, messageBody);
-        await gapi.client.gmail.users.messages.send({
-            'userId': 'me',
-            'resource': {
-                'raw': rawMessage
-            }
-        });
-        updateStatus('המייל נשלח בהצלחה!', 'success', false);
-    } catch (err) {
-        displayAPIError(err, 'שגיאה בשליחת המייל דרך Gmail API');
-    }
-}
+
 /**
  * Creates Google Calendar events for selected employees' shifts.
- * @param {string[]} selectedEmployees - Array of employee names for whom to create events.
  */
 export async function handleCreateCalendarEvents(selectedEmployees) {
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי לבצע פעולה זו.', 'info', false);
         return;
     }
-    if (selectedEmployees.length === 0) {
+    if (!selectedEmployees || selectedEmployees.length === 0) {
         updateStatus('לא נבחרו עובדים ליצירת אירועי יומן.', 'info', false);
         return;
     }
     const weekId = getWeekId(DOMElements.datePicker.value);
-    if (!allSchedules[weekId] || Object.keys(allSchedules[weekId]).length === 0) {
+    const scheduleDataForWeek = allSchedules[weekId];
+    if (!scheduleDataForWeek || Object.keys(scheduleDataForWeek).length === 0) {
         updateStatus('אין נתוני סידור לשבוע זה.', 'info', false);
         return;
     }
 
-    updateStatus('יוצר אירועי יומן...', 'loading', true);
+    updateStatus(`יוצר אירועי יומן עבור ${selectedEmployees.join(', ')}...`, 'loading', true);
+    
     const weekDates = getWeekDates(new Date(weekId));
-    const scheduleDataForWeek = allSchedules[weekId] || {};
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const promises = [];
 
-    let eventsCreatedCount = 0;
-    let errorsCount = 0;
-
-    if (!allCreatedCalendarEvents[weekId]) allCreatedCalendarEvents[weekId] = {};
-
-    for (let i = 0; i < weekDates.length; i++) {
-        const date = weekDates[i];
-        const dayName = DAYS[i];
+    weekDates.forEach(date => {
+        const dayName = DAYS[date.getDay()];
         const dayData = scheduleDataForWeek[dayName] || {};
+        const dateISO = date.toISOString().split('T')[0];
 
-        if (dayName === 'שבת') continue;
+        ['morning', 'evening'].forEach(shiftType => {
+            if (dayName === 'שבת' || (dayName === 'שישי' && shiftType === 'evening')) return;
 
-        if (dayData.morning && dayData.morning.employee !== 'none' && selectedEmployees.includes(dayData.morning.employee)) {
-            const employee = dayData.morning.employee;
-            const startTime = dayData.morning.start || DEFAULT_SHIFT_TIMES.morning.start;
-            const endTime = dayData.morning.end || DEFAULT_SHIFT_TIMES.morning.end;
-
-            const event = {
-                'summary': `משמרת בוקר, אסותא (${employee})`,
-                'location': 'אסותא',
-                'description': `משמרת בוקר של ${employee}`,
-                'start': {
-                    'dateTime': `${date.toISOString().split('T')[0]}T${startTime}`,
-                    'timeZone': timeZone
-                },
-                'end': {
-                    'dateTime': `${date.toISOString().split('T')[0]}T${endTime}`,
-                    'timeZone': timeZone
-                }
-            };
-            try {
-                const response = await gapi.client.calendar.events.insert({
+            const shiftDetails = dayData[shiftType];
+            if (shiftDetails && shiftDetails.employee !== 'none' && selectedEmployees.includes(shiftDetails.employee)) {
+                const event = {
+                    'summary': `משמרת ${shiftType === 'morning' ? 'בוקר' : 'ערב'} (${shiftDetails.employee})`,
+                    'location': 'אסותא',
+                    'start': { 'dateTime': `${dateISO}T${shiftDetails.start}`, 'timeZone': timeZone },
+                    'end': { 'dateTime': `${dateISO}T${shiftDetails.end}`, 'timeZone': timeZone }
+                };
+                promises.push(gapi.client.calendar.events.insert({
                     'calendarId': 'primary',
                     'resource': event
-                });
-                if (!allCreatedCalendarEvents[weekId][dayName]) allCreatedCalendarEvents[weekId][dayName] = {};
-                allCreatedCalendarEvents[weekId][dayName].morning = response.result.id;
-                eventsCreatedCount++;
-            } catch (err) {
-                console.error(`Error creating morning event for ${dayName}:`, err);
-                errorsCount++;
+                }));
             }
-        }
+        });
+    });
 
-        if (dayName !== 'שישי' && dayData.evening && dayData.evening.employee !== 'none' && selectedEmployees.includes(dayData.evening.employee)) {
-            const employee = dayData.evening.employee;
-            const startTime = dayData.evening.start || DEFAULT_SHIFT_TIMES.evening.start;
-            const endTime = dayData.evening.end || DEFAULT_SHIFT_TIMES.evening.end;
-
-            const event = {
-                'summary': `משמרת ערב, אסותא (${employee})`,
-                'location': 'אסותא',
-                'description': `משמרת ערב של ${employee}`,
-                'start': {
-                    'dateTime': `${date.toISOString().split('T')[0]}T${startTime}`,
-                    'timeZone': timeZone
-                },
-                'end': {
-                    'dateTime': `${date.toISOString().split('T')[0]}T${endTime}`,
-                    'timeZone': timeZone
-                }
-            };
-            try {
-                const response = await gapi.client.calendar.events.insert({
-                    'calendarId': 'primary',
-                    'resource': event
-                });
-                if (!allCreatedCalendarEvents[weekId][dayName]) allCreatedCalendarEvents[weekId][dayName] = {};
-                allCreatedCalendarEvents[weekId][dayName].evening = response.result.id;
-                eventsCreatedCount++;
-            } catch (err) {
-                console.error(`Error creating evening event for ${dayName}:`, err);
-                errorsCount++;
-            }
-        }
-    }
-
-    if (eventsCreatedCount > 0) {
-        updateStatus(`נוצרו בהצלחה ${eventsCreatedCount} אירועי יומן!`, 'success', false);
-    } else if (errorsCount > 0) {
-        updateStatus(`אירעו שגיאות ביצירת ${errorsCount} אירועי יומן.`, 'error', false);
-    } else {
+    if (promises.length === 0) {
         updateStatus('לא נמצאו משמרות לעובדים הנבחרים.', 'info', false);
+        return;
     }
-    console.log("callGemini.js: Function started.");
-    console.log("callGemini.js: Event body length:", event.body ? event.body.length : 'empty');
-    // אם אתה מעביר את תוכן ה-PDF כ-Base64 בתוך ה-prompt:
-    // const { prompt, pdfContentBase64 } = JSON.parse(event.body);
-    // console.log("callGemini.js: Received PDF content (first 50 chars):", pdfContentBase64 ? pdfContentBase64.substring(0, 50) : 'none');
+
+    try {
+        const results = await Promise.all(promises);
+        updateStatus(`נוצרו בהצלחה ${results.length} אירועי יומן!`, 'success');
+    } catch (err) {
+        displayAPIError(err, 'אירעו שגיאות ביצירת אירועי יומן.');
+    }
 }
+
 /**
- * Deletes Google Calendar events previously created by the app for selected employees.
- * @param {string[]} selectedEmployees - Array of employee names for whom to delete events.
+ * Deletes Google Calendar events for selected employees.
  */
 export async function handleDeleteCalendarEvents(selectedEmployees) {
-    if (gapi.client.getToken() === null) {
-        updateStatus('יש להתחבר עם חשבון Google כדי לבצע פעולה זו.', 'info', false);
-        return;
-    }
-    if (selectedEmployees.length === 0) {
-        updateStatus('לא נבחרו עובדים למחיקת אירועי יומן.', 'info', false);
-        return;
-    }
-    const weekId = getWeekId(DOMElements.datePicker.value);
-    const eventsToDeleteForWeek = allCreatedCalendarEvents[weekId];
-
-    if (!eventsToDeleteForWeek || Object.keys(eventsToDeleteForWeek).length === 0) {
-        updateStatus('לא נמצאו אירועי יומן שנוצרו בסשן זה.', 'info', false);
-        return;
-    }
-
-    showCustomConfirmation('האם למחוק את כל אירועי היומן שנוצרו לשבוע זה עבור העובדים הנבחרים?', async () => {
-        updateStatus('מוחק אירועי יומן...', 'loading', true);
-        let eventsDeletedCount = 0;
-        let deleteErrorsCount = 0;
-
-        for (const dayName in eventsToDeleteForWeek) {
-            if (eventsToDeleteForWeek.hasOwnProperty(dayName)) {
-                const dayEvents = eventsToDeleteForWeek[dayName];
-                for (const shiftType in dayEvents) {
-                    if (dayEvents.hasOwnProperty(shiftType)) {
-                        const eventId = dayEvents[shiftType];
-                        const employeeForShift = allSchedules[weekId]?.[dayName]?.[shiftType]?.employee;
-
-                        if (eventId && employeeForShift && selectedEmployees.includes(employeeForShift)) {
-                            try {
-                                await gapi.client.calendar.events.delete({
-                                    'calendarId': 'primary',
-                                    'eventId': eventId
-                                });
-                                eventsDeletedCount++;
-                                delete dayEvents[shiftType];
-                            } catch (err) {
-                                console.error(`Error deleting event ID ${eventId}:`, err);
-                                deleteErrorsCount++;
-                            }
-                        }
-                    }
-                }
-            }
+    // This is a placeholder for a more complex implementation required for deletion.
+    showCustomConfirmation(
+        'מחיקת אירועים דורשת מימוש מתקדם יותר. האם תרצה להמשיך?',
+        () => {
+            updateStatus('פונקציונליות המחיקה עדיין בפיתוח.', 'info');
         }
-
-        if (Object.keys(eventsToDeleteForWeek).every(dayName => Object.keys(eventsToDeleteForWeek[dayName]).length === 0)) {
-            delete allCreatedCalendarEvents[weekId];
-        }
-
-        if (eventsDeletedCount > 0) {
-            updateStatus(`נמחקו בהצלחה ${eventsDeletedCount} אירועי יומן.`, 'success', false);
-        } else if (deleteErrorsCount > 0) {
-            updateStatus(`אירעו שגיאות במחיקת ${deleteErrorsCount} אירועי יומן.`, 'error', false);
-        } else {
-            updateStatus('לא נמצאו אירועים למחיקה.', 'info', false);
-        }
-    });
+    );
 }
