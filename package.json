@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {
-  "test": "echo \"Error: no test specified\" && exit 1",
-  "build-css": "tailwindcss -i ./CSS/input.css -o ./CSS/styles.css --watch"
+"scripts": {
+  "build": "tailwindcss -i ./CSS/input.css -o ./CSS/styles.css",
+  "watch": "tailwindcss -i ./CSS/input.css -o ./CSS/styles.css --watch"
 },
   "repository": {
     "type": "git",
