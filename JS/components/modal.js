@@ -1,4 +1,4 @@
-import { saveData } from "../Api/googleApi.js";
+import { saveFullSchedule } from "../Api/googleApi.js";
 import { DEFAULT_SHIFT_TIMES, EMPLOYEES } from "../config.js";
 import { updateStatus, DOMElements, allSchedules } from "../main.js";
 import { formatDate, getWeekId } from "../utils.js";
@@ -78,8 +78,7 @@ export function handleShiftCellClick(e) {
     DOMElements.shiftModal.classList.remove('hidden');
 }
 
-import { saveData, sendEmailWithGmailApi, saveFullSchedule } from "../Api/googleApi.js"; // הוסף ייבוא
-//...
+
 export async function handleModalSave() {
     const employee = DOMElements.shiftModal.dataset.selectedEmployee || 'none';
     const weekId = getWeekId(DOMElements.datePicker.value);
