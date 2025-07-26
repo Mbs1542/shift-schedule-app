@@ -551,9 +551,25 @@ async function getAllGoogleSheetsShiftsForMaor() {
     }
     return maorShifts;
 }
-
+/**
+ * Updates the status message inside the differences modal.
+ * @param {string} text - The message to display.
+ * @param {'info'|'success'|'error'|'loading'} type - The type of status.
+ * @param {boolean} [showSpinner=false] - Whether to show a loading spinner.
+ */
+function updateDifferencesModalStatus(text, type, showSpinner = false) {
+    const modalStatusEl = document.getElementById('differences-modal-status');
+    if (modalStatusEl) {
+        const colors = { info: 'text-slate-500', success: 'text-green-600', error: 'text-red-600', loading: 'text-blue-600' };
+        let spinnerHtml = showSpinner ? '<span class="spinner mr-2"></span>' : '';
+        modalStatusEl.innerHTML = `<div class="flex items-center justify-center p-2 rounded-md ${colors[type] || colors.info}">${spinnerHtml}<span>${text}</span></div>`;
+    }
+}
 /**
  * מטפל בייבוא המשמרות שנבחרו מההשוואה עם חילנט.
+ */
+/**
+ * Handles importing selected shifts from the Hilanet comparison.
  */
 async function handleImportSelectedHilanetShifts() {
     const selectedDiffIds = Array.from(document.querySelectorAll('.difference-checkbox:checked'))
@@ -563,10 +579,14 @@ async function handleImportSelectedHilanetShifts() {
         updateStatus('לא נבחרו פערים לייבוא.', 'info', false);
         return;
     }
+    
+    // Disable buttons during import
+    DOMElements.importSelectedHilanetShiftsBtn.disabled = true;
+    DOMElements.closeDifferencesModalBtn.disabled = true;
 
-    showCustomConfirmation('האם לייבא את המשמרות הנבחרות מחילנט ולעדכן את המערכת?', async () => {
-        let changesMade = false;
-        // שלב 1: עדכון הנתונים בזיכרון המקומי (allSchedules)
+    updateDifferencesModalStatus('מתחיל בייבוא...', 'loading', true);
+
+    try {
         currentDifferences.forEach(diff => {
             if (selectedDiffIds.includes(diff.id)) {
                 const weekId = getWeekId(diff.date);
@@ -577,40 +597,43 @@ async function handleImportSelectedHilanetShifts() {
 
                 let shiftData;
                 if (diff.type === 'added' || diff.type === 'changed') {
-                    // מייבא את המשמרת מקובץ חילנט
                     shiftData = { ...diff.hilanet };
                 } else if (diff.type === 'removed') {
-                    // מסיר את המשמרת (מגדיר 'ללא שיבוץ')
-                    shiftData = {
-                        employee: 'none',
-                        start: DEFAULT_SHIFT_TIMES[diff.shiftType].start,
-                        end: DEFAULT_SHIFT_TIMES[diff.shiftType].end
-                    };
+                    shiftData = { employee: 'none', start: DEFAULT_SHIFT_TIMES[diff.shiftType].start, end: DEFAULT_SHIFT_TIMES[diff.shiftType].end };
                 }
-                
                 allSchedules[weekId][dayName][diff.shiftType] = shiftData;
-                changesMade = true;
             }
         });
 
-        if (!changesMade) {
-            updateStatus('לא בוצעו שינויים.', 'info');
-            return;
-        }
-
-        // שלב 2: שמירת כל השינויים ל-Google Sheets בפעולה אחת
+        updateDifferencesModalStatus('שומר שינויים ב-Google Sheets...', 'loading', true);
         await saveFullSchedule(allSchedules);
 
-        // שלב 3: רענון הנתונים מהשרת והצגה מחדש של הפערים
+        updateDifferencesModalStatus('מרענן נתונים...', 'loading', true);
         await fetchData();
+
+        updateDifferencesModalStatus('מבצע השוואה מחדש...', 'loading', true);
         const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
+        
+        // Filter out the differences that were just imported
         currentDifferences = compareSchedules(allGoogleSheetsShiftsForMaor, currentHilanetShifts);
         displayDifferences(currentDifferences);
 
-        // עדכון סטטוס סופי
-        updateStatus('הייבוא הושלם והפערים עודכנו!', 'success');
-    });
+        if (currentDifferences.length === 0) {
+            updateDifferencesModalStatus('הייבוא הושלם בהצלחה! כל הפערים טופלו.', 'success');
+        } else {
+             updateDifferencesModalStatus(`הייבוא הושלם! נותרו ${currentDifferences.length} פערים.`, 'info');
+        }
+
+    } catch (error) {
+        displayAPIError(error, 'שגיאה קריטית בתהליך הייבוא.');
+        updateDifferencesModalStatus('הייבוא נכשל. בדוק את ה-console לשגיאות.', 'error');
+    } finally {
+        // Re-enable buttons
+        DOMElements.importSelectedHilanetShiftsBtn.disabled = false;
+        DOMElements.closeDifferencesModalBtn.disabled = false;
+    }
 }
+
 function handleDownloadDifferences() {
     if (currentDifferences.length === 0) {
         updateStatus('אין פערים להורדה.', 'info', false);

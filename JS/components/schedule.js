@@ -22,37 +22,24 @@ export function renderSchedule(weekId) {
         const row = document.createElement('tr');
         row.className = 'border-b border-slate-200 h-16';
 
-        // Add Day and Date cells
         row.innerHTML =
             `<td class="p-3 font-medium border-r border-l border-slate-300">${dayName}</td>` +
             `<td class="p-3 border-r border-l border-slate-300">${formatDate(date, { day: '2-digit', month: '2-digit' })}</td>`;
 
         if (dayName === 'שבת') {
-            row.innerHTML += '<td colspan="4" class="p-3 bg-blue-50 text-blue-700 font-bold border-r border-l border-slate-300 text-center">שבת שלום</td>';
+            row.innerHTML += '<td colspan="2" class="p-3 bg-blue-50 text-blue-700 font-bold border-r border-l border-slate-300 text-center">שבת שלום</td>';
         } else {
             const dayData = scheduleDataForWeek[dayName] || {};
             const morningShift = dayData.morning || { employee: 'none', start: DEFAULT_SHIFT_TIMES.morning.start, end: DEFAULT_SHIFT_TIMES.morning.end };
             const eveningShift = dayData.evening || { employee: 'none', start: DEFAULT_SHIFT_TIMES.evening.start, end: DEFAULT_SHIFT_TIMES.evening.end };
-
-            const morningEmployee = morningShift.employee === 'none' ? '—' : morningShift.employee;
-            const morningTimes = (morningShift.start && morningShift.end && morningShift.start !== 'none' && morningShift.end !== 'none') ? `${morningShift.start.substring(0, 5)}-${morningShift.end.substring(0, 5)}` : '—';
             
-            // Cell for morning employee
-            row.innerHTML += `<td class="p-0 border-r border-l border-slate-300">${createShiftCell(dayName, 'morning', morningShift.employee, eveningShift.employee, morningShift.start, morningShift.end)}</td>`;
-            // Cell for morning times
-            row.innerHTML += `<td class="p-3 border-r border-l border-slate-300 text-sm text-slate-600">${morningTimes}</td>`;
-
-            if (dayName === 'שישי') {
-                row.innerHTML += '<td colspan="2" class="p-3 bg-blue-50 text-blue-700 font-bold border-r border-l border-slate-300 text-center">שבת שלום</td>';
-            } else {
-                const eveningEmployee = eveningShift.employee === 'none' ? '—' : eveningShift.employee;
-                const eveningTimes = (eveningShift.start && eveningShift.end && eveningShift.start !== 'none' && eveningShift.end !== 'none') ? `${eveningShift.start.substring(0, 5)}-${eveningShift.end.substring(0, 5)}` : '—';
-                
-                // Cell for evening employee
-                row.innerHTML += `<td class="p-0 border-r border-l border-slate-300">${createShiftCell(dayName, 'evening', eveningShift.employee, morningShift.employee, eveningShift.start, eveningShift.end)}</td>`;
-                // Cell for evening times
-                row.innerHTML += `<td class="p-3 border-r border-l border-slate-300 text-sm text-slate-600">${eveningTimes}</td>`;
-            }
+            const eveningCellContent = dayName === 'שישי'
+                ? '<div class="flex items-center justify-center h-full p-3 bg-blue-50 text-blue-700 font-bold">שבת שלום</div>'
+                : createShiftCell(dayName, 'evening', eveningShift.employee, morningShift.employee, eveningShift.start, eveningShift.end);
+            
+            row.innerHTML +=
+                `<td class="p-0 border-r border-l border-slate-300">${createShiftCell(dayName, 'morning', morningShift.employee, eveningShift.employee, morningShift.start, morningShift.end)}</td>` +
+                `<td class="p-0 border-r border-l border-slate-300">${eveningCellContent}</td>`;
         }
         DOMElements.scheduleBody.appendChild(row);
     });
