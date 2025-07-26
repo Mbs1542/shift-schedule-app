@@ -546,21 +546,34 @@ async function handleImportSelectedHilanetShifts() {
         .map(checkbox => checkbox.dataset.diffId);
 
     if (selectedDiffIds.length === 0) {
+        // שימוש בסטטוס הכללי כי המודאל לא בהכרח יתרענן
         updateStatus('לא נבחרו פערים לייבוא.', 'info', false);
         return;
     }
 
+    // קבלת רפרנס לאזור הסטטוס בתוך המודאל
+    const modalStatusEl = document.getElementById('differences-modal-status');
+
     showCustomConfirmation('האם לייבא את המשמרות הנבחרות מחילנט ולעדכן את המערכת?', async () => {
-        updateStatus('מייבא משמרות נבחרות...', 'loading', true);
+        // עדכון הסטטוס המקומי בתוך המודאל
+        if (modalStatusEl) {
+            modalStatusEl.textContent = 'מייבא משמרות נבחרות...';
+            modalStatusEl.className = 'text-center text-sm font-medium mb-4 text-blue-600';
+        }
 
         const shiftsToUpdate = {};
         currentDifferences.forEach(diff => {
             if (selectedDiffIds.includes(diff.id)) {
                 if (diff.type === 'added' || diff.type === 'changed') {
-                    if (!shiftsToUpdate[diff.date]) shiftsToUpdate[diff.date] = {};
+                    if (!shiftsToUpdate[diff.date]) {
+                        shiftsToUpdate[diff.date] = {};
+                    }
                     shiftsToUpdate[diff.date][diff.shiftType] = { ...diff.hilanet };
                 } else if (diff.type === 'removed') {
-                    if (!shiftsToUpdate[diff.date]) shiftsToUpdate[diff.date] = {};
+                    if (!shiftsToUpdate[diff.date]) {
+                        shiftsToUpdate[diff.date] = {};
+                    }
+                    // תיקון: מבטיח שהמשמרת המוסרת תקבל ערכי ברירת מחדל
                     shiftsToUpdate[diff.date][diff.shiftType] = {
                         employee: 'none',
                         start: DEFAULT_SHIFT_TIMES[diff.shiftType].start,
@@ -570,113 +583,80 @@ async function handleImportSelectedHilanetShifts() {
             }
         });
 
-        // שמירת המשמרות וטעינה מחדש של כלל הנתונים
+        // שמירת השינויים ורענון הנתונים מהשרת
         await saveMultipleShifts(shiftsToUpdate);
         await fetchData();
 
-        // עדכון תצוגת הפערים במודאל הפתוח (השיפור החדש)
-        updateStatus('מעדכן את תצוגת הפערים...', 'loading', true);
+        // עדכון הסטטוס המקומי
+        if (modalStatusEl) {
+            modalStatusEl.textContent = 'מעדכן את תצוגת הפערים...';
+        }
+
+        // רענון תצוגת הפערים
         const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
         currentDifferences = compareSchedules(allGoogleSheetsShiftsForMaor, currentHilanetShifts);
-        displayDifferences(currentDifferences); // מרנדר מחדש את רשימת הפערים
+        displayDifferences(currentDifferences);
 
-        // עדכון סטטוס סופי למשתמש
-        if (currentDifferences.length === 0) {
-            updateStatus('הייבוא הושלם וכל הפערים טופלו!', 'success', false);
-        } else {
-            updateStatus('הייבוא הושלם. ניתן לייבא פערים נוספים.', 'success', false);
+        // עדכון סטטוס סופי בתוך המודאל
+        if (modalStatusEl) {
+            if (currentDifferences.length === 0) {
+                modalStatusEl.textContent = 'הייבוא הושלם וכל הפערים טופלו!';
+                modalStatusEl.className = 'text-center text-sm font-medium mb-4 text-green-600';
+            } else {
+                modalStatusEl.textContent = 'הייבוא הושלם. ניתן לייבא פערים נוספים.';
+                modalStatusEl.className = 'text-center text-sm font-medium mb-4 text-green-600';
+            }
         }
     });
 }
 async function saveMultipleShifts(shiftsToImport) {
+    // בדיקה ראשונית אם המשתמש מחובר
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי לייבא משמרות.', 'info', false);
         return;
     }
+
     updateStatus('מייבא משמרות...', 'loading', true);
+
     try {
-        const response = await gapi.client.sheets.spreadsheets.values.get({
-            spreadsheetId: SPREADSHEET_ID,
-            range: `${SHEET_NAME}!A:F`,
-        });
-        let existingValues = response.result.values || [];
-        const defaultHeaders = ["week_id", "day", "shift_type", "employee", "start_time", "end_time"];
-        if (existingValues.length === 0 || !defaultHeaders.every(h => existingValues[0].includes(h))) {
-            existingValues.unshift(defaultHeaders);
-        }
-        const headers = existingValues[0];
-        const existingShiftsMap = {};
-        for (let i = 1; i < existingValues.length; i++) {
-            const row = existingValues[i];
-            const weekId = row[headers.indexOf("week_id")];
-            const day = row[headers.indexOf("day")];
-            const shiftType = row[headers.indexOf("shift_type")];
-            if (weekId && day && shiftType) {
-                if (!existingShiftsMap[weekId]) existingShiftsMap[weekId] = {};
-                if (!existingShiftsMap[weekId][day]) existingShiftsMap[weekId][day] = {};
-                existingShiftsMap[weekId][day][shiftType] = {
-                    employee: row[headers.indexOf("employee")],
-                    start: row[headers.indexOf("start_time")],
-                    end: row[headers.indexOf("end_time")],
-                    originalRowIndex: i
-                };
-            }
-        }
-        const updates = [];
-        const rowsToDelete = new Set();
+        // שלב 1: קבץ את כל השינויים הנדרשים לפי שבוע (weekId)
+        const changesByWeek = {};
         for (const dateString in shiftsToImport) {
             const weekId = getWeekId(dateString);
-            const dayName = DAYS[new Date(dateString).getDay()];
-            const hilanetDayShifts = shiftsToImport[dateString];
-            for (const shiftType in hilanetDayShifts) {
-                const hilanetShift = hilanetDayShifts[shiftType];
-                const existingShift = existingShiftsMap[weekId]?.[dayName]?.[shiftType];
-                if (hilanetShift.employee && hilanetShift.employee !== 'none') {
-                    if (existingShift) {
-                        if (existingShift.employee !== hilanetShift.employee || existingShift.start !== hilanetShift.start || existingShift.end !== hilanetShift.end) {
-                            rowsToDelete.add(existingShift.originalRowIndex);
-                            updates.push([weekId, dayName, shiftType, hilanetShift.employee, hilanetShift.start, hilanetShift.end]);
-                        }
-                    } else {
-                        updates.push([weekId, dayName, shiftType, hilanetShift.employee, hilanetShift.start, hilanetShift.end]);
-                    }
-                } else {
-                    if (existingShift) {
-                        rowsToDelete.add(existingShift.originalRowIndex);
-                    }
+            if (!changesByWeek[weekId]) {
+                changesByWeek[weekId] = {};
+            }
+            // הוסף את כל השינויים של אותו תאריך לשבוע המתאים
+            changesByWeek[weekId][dateString] = shiftsToImport[dateString];
+        }
+
+        // שלב 2: עבור כל שבוע שהושפע מהשינויים, בצע שמירה
+        for (const weekId in changesByWeek) {
+            const weeklyChanges = changesByWeek[weekId];
+            
+            // ודא שהשבוע קיים בזיכרון המקומי (allSchedules)
+            if (!allSchedules[weekId]) {
+                allSchedules[weekId] = {};
+            }
+            
+            // עדכן את הנתונים בזיכרון המקומי עם השינויים החדשים
+            for (const dateString in weeklyChanges) {
+                const dayName = DAYS[new Date(dateString).getDay()];
+                if (!allSchedules[weekId][dayName]) {
+                    allSchedules[weekId][dayName] = {};
+                }
+                const dayChanges = weeklyChanges[dateString];
+                for (const shiftType in dayChanges) {
+                    allSchedules[weekId][dayName][shiftType] = dayChanges[shiftType];
                 }
             }
+
+            // שלב 3: השתמש בפונקציה האמינה 'saveData' כדי לשמור את כל נתוני השבוע המעודכן
+            await saveData(weekId, allSchedules[weekId]);
         }
-        let finalDataToWrite = existingValues.filter((_, index) => index === 0 || !rowsToDelete.has(index));
-        finalDataToWrite.push(...updates);
-        const dayOrder = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
-        finalDataToWrite.sort((a, b) => {
-            if (a === headers) return -1;
-            if (b === headers) return 1;
-            const weekIdA = a[headers.indexOf("week_id")];
-            const weekIdB = b[headers.indexOf("week_id")];
-            const dayA = a[headers.indexOf("day")];
-            const dayB = b[headers.indexOf("day")];
-            if (weekIdA < weekIdB) return -1;
-            if (weekIdA > weekIdB) return 1;
-            return dayOrder.indexOf(dayA) - dayOrder.indexOf(dayB);
-        });
-        if (finalDataToWrite[0] !== headers) {
-            finalDataToWrite = [headers, ...finalDataToWrite.filter(row => row !== headers)];
-        }
-        await gapi.client.sheets.spreadsheets.values.clear({
-            spreadsheetId: SPREADSHEET_ID,
-            range: `${SHEET_NAME}!A:F`,
-        });
-        if (finalDataToWrite.length > 0) {
-            await gapi.client.sheets.spreadsheets.values.update({
-                spreadsheetId: SPREADSHEET_ID,
-                range: `${SHEET_NAME}!A1`,
-                valueInputOption: 'RAW',
-                resource: { values: finalDataToWrite },
-            });
-        }
+
         updateStatus('המשמרות יובאו בהצלחה!', 'success', false);
+
     } catch (err) {
         displayAPIError(err, 'שגיאה בייבוא המשמרות ל-Google Sheets');
     }
