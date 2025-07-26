@@ -1,14 +1,26 @@
 {
-  "name": "shift-schedule-app",
+  "name": "netlifyprojects",
   "version": "1.0.0",
-  "description": "Shift scheduling application with Google Sheets and Gemini API.",
-  "main": "index.html",
+  "description": "",
+  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "test": "echo \"Error: no test specified\" && exit 1",
+  "build-css": "tailwindcss -i ./CSS/input.css -o ./CSS/styles.css --watch"
+},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbs1542/shift-schedule-app.git"
   },
+  "keywords": [],
   "author": "",
   "license": "ISC",
-  "dependencies": {
-    "node-fetch": "^2.6.7"
-  }
+  "bugs": {
+    "url": "https://github.com/Mbs1542/shift-schedule-app/issues"
+  },
+  "homepage": "https://github.com/Mbs1542/shift-schedule-app#readme",
+"devDependencies": {
+  "autoprefixer": "^10.4.19",
+  "postcss": "^8.4.38",
+  "tailwindcss": "^3.4.4"
+}
 }
