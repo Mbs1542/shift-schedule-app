@@ -10,33 +10,30 @@
     <link rel="stylesheet" href="CSS/styles.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- PDF.js - גרסה מעודכנת -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
-        // הגדרת נתיב ה-worker עבור PDF.js כדי למנוע אזהרות
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-   
 </head>
-<body class="bg-slate-100 p-4 sm:p-6 md:p-8">
+<body class="bg-slate-100 p-4 sm:p-6 md:p-8 font-[Rubik]">
 
     <div class="max-w-6xl mx-auto">
-        <div class="text-center mb-6">
+        <header class="text-center mb-6">
             <h1 class="text-3xl md:text-4xl font-bold text-slate-800">מערכת סידור משמרות</h1>
             <p class="text-slate-600 mt-2 text-lg">הנתונים נשמרים ונקראים ישירות מ-Google Sheets.</p>
-        </div>
+        </header>
 
-        <div class="card flex flex-col md:flex-row justify-between items-center gap-4">
+        <section class="card flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
             <div id="auth-section" class="flex items-center gap-3">
                 <button id="authorize_button" class="btn btn-blue" disabled>התחבר/אשר עם Google</button>
                 <button id="signout_button" class="btn btn-red hidden">התנתק</button>
             </div>
             <div id="status-indicator" class="flex items-center gap-2 text-sm text-slate-500 p-2 rounded-md"></div>
-        </div>
+        </section>
 
-        <div id="app-content" class="hidden">
-            <div class="card flex flex-col md:flex-row justify-between items-center gap-4">
+        <main id="app-content" class="hidden">
+            <section class="card flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
                 <div class="flex items-center gap-3">
                     <label for="date-picker" class="font-semibold text-slate-700">בחר שבוע:</label>
                     <input type="date" id="date-picker" class="p-2 border border-slate-300 rounded-md">
@@ -55,9 +52,9 @@
                     <button id="upload-hilanet-btn" class="btn btn-purple">העלה קובץ מחילנט (PDF/XLSX)</button>
                     <button id="show-chart-btn" class="btn btn-green">הצג גרף משמרות 📊</button>
                 </div>
-            </div>
+            </section>
 
-            <div id="schedule-card" class="card">
+            <section id="schedule-card" class="card mb-6">
                 <h2 id="schedule-title" class="text-2xl font-semibold mb-4 text-slate-700 text-center"></h2>
                 <div class="overflow-x-auto">
                     <table id="schedule-table" class="w-full text-center text-slate-700 border-collapse">
@@ -72,10 +69,10 @@
                         <tbody id="schedule-body" class="bg-white"></tbody>
                     </table>
                 </div>
-            </div>
+            </section>
             
-            <div class="chart-container-wrapper">
-                <div id="chart-card" class="card hidden">
+            <section class="chart-container-wrapper mb-6">
+                <div id="chart-card" class="card hidden mb-6">
                     <h2 class="text-2xl font-semibold mb-4 text-slate-700 text-center">גרף התפלגות משמרות שבועית</h2>
                     <div class="chart-container">
                         <canvas id="shift-chart"></canvas>
@@ -86,17 +83,17 @@
                     <h2 class="text-2xl font-semibold mb-4 text-slate-700 text-center">סיכום משמרות חודשי לעובד</h2>
                     <div class="mb-4">
                         <label for="monthly-summary-employee-select" class="block text-sm font-medium text-slate-700 mb-2">בחר עובד:</label>
-                        <select id="monthly-summary-employee-select" class="p-2 border border-slate-300 rounded-md w-full max-w-xs">
-                        </select>
+                        <select id="monthly-summary-employee-select" class="p-2 border border-slate-300 rounded-md w-full max-w-xs"></select>
                     </div>
                     <div class="chart-container">
                         <canvas id="monthly-summary-chart"></canvas>
                     </div>
                 </div>
-            </div>
-        </div>
+            </section>
+        </main>
     </div>
 
+    <!-- מודאלים -->
     <div id="shift-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
             <h3 id="modal-title" class="text-xl font-bold mb-6 text-center text-slate-800"></h3>
@@ -109,7 +106,6 @@
                 </div>
                 <div>
                     <label for="shift-end-time" class="block text-sm font-medium text-slate-700">שעת סיום:</label>
-
                     <input type="time" id="shift-end-time" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
                 </div>
             </div>
@@ -139,7 +135,7 @@
                         <option value="">בחר עובד</option>
                         <option value="מאור">מאור</option>
                         <option value="מור">מור</option>
-                        </select>
+                    </select>
                 </div>
                 <div>
                     <label for="vacation-start-date" class="block text-sm font-medium text-slate-700">תאריך התחלה:</label>
@@ -158,16 +154,16 @@
     </div>
 
     <div id="differences-modal" class="hidden custom-modal">
-    <div id="differences-modal-content" class="custom-modal-content differences-modal-content">
-        <h3 class="text-xl font-bold mb-4 text-slate-800">פערים בסידור עבודה (מאור)</h3>
-        <div id="differences-display" class="text-sm text-slate-700 mb-4 overflow-x-auto"></div>
-        <div class="flex justify-center gap-4">
-            <button id="import-selected-hilanet-shifts-btn" class="btn btn-purple">יבוא משמרות נבחרות למערכת שלי</button>
-            <button id="download-differences-btn" class="btn btn-green">הורד מסמך הבדלים (CSV)</button>
-            <button id="close-differences-modal-btn" class="btn bg-slate-200 text-slate-700 hover:bg-slate-300">סגור</button>
+        <div id="differences-modal-content" class="custom-modal-content differences-modal-content">
+            <h3 class="text-xl font-bold mb-4 text-slate-800">פערים בסידור עבודה (מאור)</h3>
+            <div id="differences-display" class="text-sm text-slate-700 mb-4 overflow-x-auto"></div>
+            <div class="flex justify-center gap-4">
+                <button id="import-selected-hilanet-shifts-btn" class="btn btn-purple">יבוא משמרות נבחרות למערכת שלי</button>
+                <button id="download-differences-btn" class="btn btn-green">הורד מסמך הבדלים (CSV)</button>
+                <button id="close-differences-modal-btn" class="btn bg-slate-200 text-slate-700 hover:bg-slate-300">סגור</button>
+            </div>
         </div>
     </div>
-</div>
 
     <script type="module" src="JS/main.js"></script>
 </body>
