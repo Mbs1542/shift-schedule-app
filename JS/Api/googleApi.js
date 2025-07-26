@@ -84,7 +84,7 @@ export async function fetchData() {
 /**
  * Saves schedule data for a specific week to Google Sheets.
  */
-export async function saveData(weekId, scheduleDataForWeek) {
+export async function saveFullSchedule(fullScheduleData) {
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי לשמור נתונים.', 'info', false);
         return;
@@ -92,54 +92,36 @@ export async function saveData(weekId, scheduleDataForWeek) {
     updateStatus('שומר...', 'loading', true);
     DOMElements.scheduleCard.classList.add('loading');
     try {
-        const response = await gapi.client.sheets.spreadsheets.values.get({
-            spreadsheetId: SPREADSHEET_ID,
-            range: `${SHEET_NAME}!A:F`,
-        });
-        let existingValues = response.result.values || [];
-        const defaultHeaders = ["week_id", "day", "shift_type", "employee", "start_time", "end_time"];
+        const dataToWrite = [
+            ["week_id", "day", "shift_type", "employee", "start_time", "end_time"]
+        ];
 
-        if (existingValues.length === 0 || !defaultHeaders.every(h => existingValues[0].includes(h))) {
-            existingValues = [defaultHeaders];
-        }
-        const headers = existingValues[0];
+        const sortedWeekIds = Object.keys(fullScheduleData).sort();
 
-        const rowsToKeep = existingValues.filter((row, index) => index === 0 || row[headers.indexOf("week_id")] !== weekId);
+        for (const weekId of sortedWeekIds) {
+            const scheduleDataForWeek = fullScheduleData[weekId];
+            const dayOrder = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+            const sortedDays = Object.keys(scheduleDataForWeek).sort((a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b));
 
-        const newRowsForWeek = [];
-        Object.keys(scheduleDataForWeek).forEach(day => {
-            Object.keys(scheduleDataForWeek[day]).forEach(shiftType => {
-                const shiftDetails = scheduleDataForWeek[day][shiftType];
-                const employee = shiftDetails.employee;
-                if (employee && employee !== 'none') {
-                    newRowsForWeek.push([weekId, day, shiftType, employee, shiftDetails.start || '', shiftDetails.end || '']);
+            for (const day of sortedDays) {
+                const dayData = scheduleDataForWeek[day];
+                if (dayData.morning && dayData.morning.employee !== 'none') {
+                    const shift = dayData.morning;
+                    dataToWrite.push([weekId, day, 'morning', shift.employee, shift.start, shift.end]);
                 }
-            });
-        });
-
-        let dataToWrite = [...rowsToKeep, ...newRowsForWeek];
-        const dayOrder = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
-        
-        // --- תיקון לוגיקת המיון ---
-        const headerRow = dataToWrite.shift(); // שמור את הכותרות בצד
-        dataToWrite.sort((a, b) => {
-            const weekIdA = a[headers.indexOf("week_id")];
-            const weekIdB = b[headers.indexOf("week_id")];
-            if (weekIdA < weekIdB) return -1;
-            if (weekIdA > weekIdB) return 1;
-
-            const dayA = a[headers.indexOf("day")];
-            const dayB = b[headers.indexOf("day")];
-            return dayOrder.indexOf(dayA) - dayOrder.indexOf(dayB);
-        });
-        dataToWrite.unshift(headerRow); // החזר את הכותרות להתחלה
+                if (dayData.evening && dayData.evening.employee !== 'none') {
+                    const shift = dayData.evening;
+                    dataToWrite.push([weekId, day, 'evening', shift.employee, shift.start, shift.end]);
+                }
+            }
+        }
 
         await gapi.client.sheets.spreadsheets.values.clear({
             spreadsheetId: SPREADSHEET_ID,
-            range: `${SHEET_NAME}!A:F`,
+            range: SHEET_NAME,
         });
 
-        if (dataToWrite.length > 0) {
+        if (dataToWrite.length > 1) { // Only write if there's more than just the header
             await gapi.client.sheets.spreadsheets.values.update({
                 spreadsheetId: SPREADSHEET_ID,
                 range: `${SHEET_NAME}!A1`,

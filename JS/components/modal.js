@@ -76,7 +76,10 @@ export function handleShiftCellClick(e) {
     }
 
     DOMElements.shiftModal.classList.remove('hidden');
-}/** Handles saving the selected shift details from the modal. */
+}
+
+import { saveData, sendEmailWithGmailApi, saveFullSchedule } from "../Api/googleApi.js"; // הוסף ייבוא
+//...
 export async function handleModalSave() {
     const employee = DOMElements.shiftModal.dataset.selectedEmployee || 'none';
     const weekId = getWeekId(DOMElements.datePicker.value);
@@ -95,9 +98,8 @@ export async function handleModalSave() {
 
     closeModal();
     renderSchedule(weekId);
-    await saveData(weekId, allSchedules[weekId]);
+    await saveFullSchedule(allSchedules); // <-- שימוש בפונקציה החדשה
 }
-/** Closes the shift selection modal. */
 
 export function closeModal() {
     DOMElements.shiftModal.classList.add('hidden');

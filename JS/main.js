@@ -187,7 +187,7 @@ async function handleReset() {
         const weekId = getWeekId(DOMElements.datePicker.value);
         allSchedules[weekId] = {};
         renderSchedule(weekId);
-        await saveData(weekId, {});
+        await saveFullSchedule(allSchedules); // <-- שימוש בפונקציה החדשה
     });
 }
 
@@ -284,6 +284,9 @@ export function showCustomConfirmation(message, onConfirm) {
     });
 }
 
+/**
+ * מעתיק את סידור העבודה מהשבוע הקודם לשבוע הנוכחי.
+ */
 async function handleCopyPreviousWeek() {
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי להעתיק סידורים.', 'info', false);
@@ -291,23 +294,34 @@ async function handleCopyPreviousWeek() {
     }
     const currentWeekId = getWeekId(DOMElements.datePicker.value);
     const currentDate = new Date(currentWeekId);
+    // מחשב את תאריך ההתחלה של השבוע הקודם
     const previousDate = new Date(currentDate);
     previousDate.setDate(currentDate.getDate() - 7);
     const previousWeekId = getWeekId(previousDate.toISOString().split('T')[0]);
 
+    // בודק אם קיים סידור לשבוע הקודם
     if (!allSchedules[previousWeekId] || Object.keys(allSchedules[previousWeekId]).length === 0) {
         updateStatus(`לא נמצא סידור לשבוע הקודם (${formatDate(previousDate)}).`, 'info', false);
         return;
     }
 
+    // מציג חלון אישור לפני ההעתקה
     showCustomConfirmation(`האם להעתיק את הסידור מהשבוע של ${formatDate(previousDate)} לשבוע הנוכחי?`, async () => {
+        // מבצע העתקה עמוקה של אובייקט הסידור
         allSchedules[currentWeekId] = JSON.parse(JSON.stringify(allSchedules[previousWeekId]));
         renderSchedule(currentWeekId);
-        await saveData(currentWeekId, allSchedules[currentWeekId]);
+        // שומר את כל מצב האפליקציה (כולל השבוע שהועתק)
+        await saveFullSchedule(allSchedules);
         updateStatus('סידור השבוע הקודם הועתק בהצלחה!', 'success', false);
     });
 }
 
+/**
+ * מטפל בשיבוץ חופשה לעובד על ידי החלפתו בעובד אחר.
+ * @param {string} vacationingEmployee - העובד שיוצא לחופשה.
+ * @param {string} startDateString - תאריך התחלה.
+ * @param {string} endDateString - תאריך סיום.
+ */
 async function handleVacationShift(vacationingEmployee, startDateString, endDateString) {
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי לבצע פעולה זו.', 'info', false);
@@ -325,53 +339,48 @@ async function handleVacationShift(vacationingEmployee, startDateString, endDate
         return;
     }
 
-    updateStatus(`משבץ את ${VACATION_EMPLOYEE_REPLACEMENT} במקום ${vacationingEmployee} בין ${formatDate(startDate)} ל-${formatDate(endDate)}...`, 'loading', true);
+    updateStatus(`משבץ את ${VACATION_EMPLOYEE_REPLACEMENT} במקום ${vacationingEmployee}...`, 'loading', true);
 
     let shiftsUpdatedCount = 0;
-    const affectedWeeks = new Set();
+    let hasChanges = false;
 
+    // לולאה שעוברת על כל יום בטווח התאריכים
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
         const currentDayISO = d.toISOString().split('T')[0];
         const weekId = getWeekId(currentDayISO);
         const dayName = DAYS[d.getDay()];
 
-        if (!allSchedules[weekId] || dayName === 'שבת') continue;
+        if (!allSchedules[weekId] || dayName === 'שבת' || !allSchedules[weekId][dayName]) continue;
 
-        const dayData = allSchedules[weekId][dayName] || {};
+        const dayData = allSchedules[weekId][dayName];
 
+        // בודק ומשנה משמרות בוקר
         if (dayData.morning && dayData.morning.employee === vacationingEmployee) {
-            if (dayData.evening && dayData.evening.employee === VACATION_EMPLOYEE_REPLACEMENT) {
-                console.warn(`Skipping morning shift for ${dayName} as ${VACATION_EMPLOYEE_REPLACEMENT} is already in evening shift.`);
-                updateStatus(`אזהרה: ${VACATION_EMPLOYEE_REPLACEMENT} כבר משובץ למשמרת ערב ביום ${dayName}. דילוג על שיבוץ בוקר.`, 'info');
-            } else {
-                dayData.morning.employee = VACATION_EMPLOYEE_REPLACEMENT;
-                shiftsUpdatedCount++;
-                affectedWeeks.add(weekId);
-            }
+            dayData.morning.employee = VACATION_EMPLOYEE_REPLACEMENT;
+            shiftsUpdatedCount++;
+            hasChanges = true;
         }
 
+        // בודק ומשנה משמרות ערב (לא ביום שישי)
         if (dayName !== 'שישי' && dayData.evening && dayData.evening.employee === vacationingEmployee) {
-            if (dayData.morning && dayData.morning.employee === VACATION_EMPLOYEE_REPLACEMENT) {
-                console.warn(`Skipping evening shift for ${dayName} as ${VACATION_EMPLOYEE_REPLACEMENT} is already in morning shift.`);
-                updateStatus(`אזהרה: ${VACATION_EMPLOYEE_REPLACEMENT} כבר משובץ למשמרת בוקר ביום ${dayName}. דילוג על שיבוץ ערב.`, 'info');
-            } else {
-                dayData.evening.employee = VACATION_EMPLOYEE_REPLACEMENT;
-                shiftsUpdatedCount++;
-                affectedWeeks.add(weekId);
-            }
+            dayData.evening.employee = VACATION_EMPLOYEE_REPLACEMENT;
+            shiftsUpdatedCount++;
+            hasChanges = true;
         }
     }
 
-    if (affectedWeeks.size > 0) {
-        for (const weekToSaveId of affectedWeeks) {
-            await saveData(weekToSaveId, allSchedules[weekToSaveId]);
-        }
+    // מבצע שמירה רק אם היו שינויים
+    if (hasChanges) {
+        // שומר את כל מצב האפליקציה בבת אחת
+        await saveFullSchedule(allSchedules);
+        // מרענן את התצוגה של השבוע הנוכחי
         renderSchedule(getWeekId(DOMElements.datePicker.value));
-        updateStatus(`שובצו ${shiftsUpdatedCount} משמרות עבור ${vacationingEmployee} על ידי ${VACATION_EMPLOYEE_REPLACEMENT}.`, 'success', false);
+        updateStatus(`שובצו ${shiftsUpdatedCount} משמרות עבור ${VACATION_EMPLOYEE_REPLACEMENT}.`, 'success', false);
     } else {
         updateStatus(`לא נמצאו משמרות עבור ${vacationingEmployee} בטווח התאריכים הנבחר.`, 'info', false);
     }
 }
+
 
 // ... (rest of your main.js code)
 
@@ -543,72 +552,63 @@ async function getAllGoogleSheetsShiftsForMaor() {
     return maorShifts;
 }
 
+/**
+ * מטפל בייבוא המשמרות שנבחרו מההשוואה עם חילנט.
+ */
 async function handleImportSelectedHilanetShifts() {
     const selectedDiffIds = Array.from(document.querySelectorAll('.difference-checkbox:checked'))
         .map(checkbox => checkbox.dataset.diffId);
 
     if (selectedDiffIds.length === 0) {
-        // שימוש בסטטוס הכללי כי המודאל לא בהכרח יתרענן
         updateStatus('לא נבחרו פערים לייבוא.', 'info', false);
         return;
     }
 
-    // קבלת רפרנס לאזור הסטטוס בתוך המודאל
-    const modalStatusEl = document.getElementById('differences-modal-status');
-
     showCustomConfirmation('האם לייבא את המשמרות הנבחרות מחילנט ולעדכן את המערכת?', async () => {
-        // עדכון הסטטוס המקומי בתוך המודאל
-        if (modalStatusEl) {
-            modalStatusEl.textContent = 'מייבא משמרות נבחרות...';
-            modalStatusEl.className = 'text-center text-sm font-medium mb-4 text-blue-600';
-        }
-
-        const shiftsToUpdate = {};
+        let changesMade = false;
+        // שלב 1: עדכון הנתונים בזיכרון המקומי (allSchedules)
         currentDifferences.forEach(diff => {
             if (selectedDiffIds.includes(diff.id)) {
+                const weekId = getWeekId(diff.date);
+                const dayName = diff.dayName;
+
+                if (!allSchedules[weekId]) allSchedules[weekId] = {};
+                if (!allSchedules[weekId][dayName]) allSchedules[weekId][dayName] = {};
+
+                let shiftData;
                 if (diff.type === 'added' || diff.type === 'changed') {
-                    if (!shiftsToUpdate[diff.date]) {
-                        shiftsToUpdate[diff.date] = {};
-                    }
-                    shiftsToUpdate[diff.date][diff.shiftType] = { ...diff.hilanet };
+                    // מייבא את המשמרת מקובץ חילנט
+                    shiftData = { ...diff.hilanet };
                 } else if (diff.type === 'removed') {
-                    if (!shiftsToUpdate[diff.date]) {
-                        shiftsToUpdate[diff.date] = {};
-                    }
-                    // תיקון: מבטיח שהמשמרת המוסרת תקבל ערכי ברירת מחדל
-                    shiftsToUpdate[diff.date][diff.shiftType] = {
+                    // מסיר את המשמרת (מגדיר 'ללא שיבוץ')
+                    shiftData = {
                         employee: 'none',
                         start: DEFAULT_SHIFT_TIMES[diff.shiftType].start,
                         end: DEFAULT_SHIFT_TIMES[diff.shiftType].end
                     };
                 }
+                
+                allSchedules[weekId][dayName][diff.shiftType] = shiftData;
+                changesMade = true;
             }
         });
 
-        // שמירת השינויים ורענון הנתונים מהשרת
-        await saveMultipleShifts(shiftsToUpdate);
-        await fetchData();
-
-        // עדכון הסטטוס המקומי
-        if (modalStatusEl) {
-            modalStatusEl.textContent = 'מעדכן את תצוגת הפערים...';
+        if (!changesMade) {
+            updateStatus('לא בוצעו שינויים.', 'info');
+            return;
         }
 
-        // רענון תצוגת הפערים
+        // שלב 2: שמירת כל השינויים ל-Google Sheets בפעולה אחת
+        await saveFullSchedule(allSchedules);
+
+        // שלב 3: רענון הנתונים מהשרת והצגה מחדש של הפערים
+        await fetchData();
         const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
         currentDifferences = compareSchedules(allGoogleSheetsShiftsForMaor, currentHilanetShifts);
         displayDifferences(currentDifferences);
 
-        // עדכון סטטוס סופי בתוך המודאל
-        if (modalStatusEl) {
-            if (currentDifferences.length === 0) {
-                modalStatusEl.textContent = 'הייבוא הושלם וכל הפערים טופלו!';
-                modalStatusEl.className = 'text-center text-sm font-medium mb-4 text-green-600';
-            } else {
-                modalStatusEl.textContent = 'הייבוא הושלם. ניתן לייבא פערים נוספים.';
-                modalStatusEl.className = 'text-center text-sm font-medium mb-4 text-green-600';
-            }
-        }
+        // עדכון סטטוס סופי
+        updateStatus('הייבוא הושלם והפערים עודכנו!', 'success');
     });
 }
 async function saveMultipleShifts(shiftsToImport) {
