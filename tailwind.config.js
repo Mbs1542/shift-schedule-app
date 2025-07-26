@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./index.html",
+    "./*.html", // שנה את השורה הזו
     "./JS/**/*.js",
   ],
   theme: {
