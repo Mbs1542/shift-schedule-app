@@ -12,19 +12,8 @@ import { getWeekId } from '../utils.js';
  */
 function normalizeText(text) {
     if (!text) return '';
-    return text
-        // מחליף תווים מיוחדים ברווחים
-        .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, ' ')
-        // מחליף סימני פיסוק נפוצים בעברית
-        .replace(/[״"׳']/g, ' ')
-        // מחליף רצף של רווחים ברווח בודד
-        .replace(/\s+/g, ' ')
-        // מסיר רווחים בין אותיות עבריות
-        .replace(/([א-ת])\s(?=[א-ת])/g, '$1')
-        // מתקן מספרים שהופרדו בטעות
-        .replace(/(\d)\s+(?=\d)/g, '$1')
-        // מנקה רווחים מיותרים
-        .trim();
+    // מחליף כל רצף של רווחים ברווח בודד ומסיר רווחים בין אותיות עבריות
+    return text.replace(/\s+/g, ' ').replace(/([א-ת])\s(?=[א-ת])/g, '$1').trim();
 }
 
 /**
@@ -33,34 +22,23 @@ function normalizeText(text) {
  * @returns {string|null} שם העובד שנמצא או null.
  */
 function extractEmployeeName(cleanedText) {
-    // תבניות שונות לזיהוי שם העובד
     const employeeNamePatterns = [
-        // תבניות ספציפיות למאור
-        /(?:בן[- ]סימון|סימון[- ]בן)\s*(?:מאור|מאיר)/i,
-        /(?:מאור|מאיר)\s*(?:בן[- ]סימון|סימון[- ]בן)/i,
-        // תבניות כלליות יותר
-        /עובד:?\s*([\u0590-\u05FF\s]+(?:\s+בן\s+[\u0590-\u05FF\s]+)?)\s*\d{9}/i,
-        /שם\s*(?:עובד|מלא):?\s*([\u0590-\u05FF\s]+)/i,
-        /ת\.?ז\.?:?\s*\d{9}\s*([\u0590-\u05FF\s]+)/i
+        /(?:בן סימון|סימון בן)\s+(מאור)/i,
+        /מאור\s+(?:בן סימון|סימון)/i,
+        /עובד:\s*([\u0590-\u05FF\s]+)\s*\d{9}/i // תבנית כללית יותר
     ];
 
-    // נסה את כל התבניות
     for (const pattern of employeeNamePatterns) {
         const match = cleanedText.match(pattern);
-        if (match) {
-            const extractedName = match[1] ? match[1].trim() : null;
-            // בדוק אם השם מכיל "מאור" או וריאציות שלו
-            if (extractedName && /מאור|מאיר/i.test(extractedName)) {
-                return 'מאור';
-            }
+        if (match && match[1]) {
+            // החזר את השם "מאור" אם נמצאה התאמה
+            if (match[1].includes('מאור')) return 'מאור';
         }
     }
-
-    // חיפוש פשוט של המילה "מאור" בכל הטקסט
-    if (/\b(מאור|מאיר)\b/i.test(cleanedText)) {
+    // נסה למצוא את השם "מאור" באופן כללי
+     if (cleanedText.includes('מאור')) {
         return 'מאור';
     }
-
     return null;
 }
 
@@ -70,62 +48,15 @@ function extractEmployeeName(cleanedText) {
  * @returns {{month: number, year: number}} אובייקט עם חודש ושנה.
  */
 function extractDate(cleanedText) {
-    // מערך של תבניות תאריך שונות
-    const datePatterns = [
-        // תבנית סטנדרטית: "לחודש MM/YY" או "לחודש MM/YYYY"
-        /לחודש\s*(\d{1,2})\/(\d{2,4})/,
-        // תבנית עם מקף: "לחודש MM-YYYY"
-        /לחודש\s*(\d{1,2})-(\d{2,4})/,
-        // תבנית מלאה בעברית: "חודש MM שנת YYYY" או "חודש MM שנה YYYY"
-        /חודש\s*(\d{1,2})\s*שנ[הת]\s*(\d{2,4})/,
-        // תבנית עם נקודה: "לחודש MM.YYYY"
-        /לחודש\s*(\d{1,2})\.(\d{2,4})/,
-        // תבנית כללית: חיפוש של MM/YYYY בכל מקום
-        /(\d{1,2})[\/\.-](\d{2,4})/
-    ];
-
-    // עבור על כל התבניות עד שנמצא התאמה
-    for (const pattern of datePatterns) {
-        const match = cleanedText.match(pattern);
-        if (match) {
-            let month = parseInt(match[1], 10);
-            let year = parseInt(match[2], 10);
-
-            // וודא שהחודש תקין
-            if (month >= 1 && month <= 12) {
-                // טיפול בפורמט שנה קצר
-                if (year < 100) {
-                    year = 2000 + year;
-                }
-                // וודא שהשנה הגיונית
-                if (year >= 2000 && year <= 2100) {
-                    return { month, year };
-                }
-            }
-        }
+    const dateMatch = cleanedText.match(/לחודש\s+(\d{2})\/(\d{2,4})/);
+    if (dateMatch) {
+        const year = parseInt(dateMatch[2], 10);
+        return {
+            month: parseInt(dateMatch[1], 10),
+            year: year < 100 ? 2000 + year : year
+        };
     }
-
-    // אם לא נמצא תאריך, נסה לחפש שם חודש בעברית
-    const hebrewMonths = {
-        'ינואר': 1, 'פברואר': 2, 'מרץ': 3, 'אפריל': 4, 'מאי': 5, 'יוני': 6,
-        'יולי': 7, 'אוגוסט': 8, 'ספטמבר': 9, 'אוקטובר': 10, 'נובמבר': 11, 'דצמבר': 12
-    };
-
-    for (const [monthName, monthNum] of Object.entries(hebrewMonths)) {
-        if (cleanedText.includes(monthName)) {
-            // חיפוש שנה בסביבת שם החודש
-            const yearMatch = cleanedText.match(/\b(20\d{2})\b/);
-            if (yearMatch) {
-                return { month: monthNum, year: parseInt(yearMatch[1], 10) };
-            }
-        }
-    }
-
-    // אם שום דבר לא עבד, החזר את התאריך הנוכחי
-    return { 
-        month: new Date().getMonth() + 1, 
-        year: new Date().getFullYear() 
-    };
+    return { month: new Date().getMonth() + 1, year: new Date().getFullYear() }; // ברירת מחדל
 }
 
 // --- פונקציות קיימות שעודכנו ---
