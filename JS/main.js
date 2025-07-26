@@ -544,13 +544,15 @@ async function getAllGoogleSheetsShiftsForMaor() {
 async function handleImportSelectedHilanetShifts() {
     const selectedDiffIds = Array.from(document.querySelectorAll('.difference-checkbox:checked'))
         .map(checkbox => checkbox.dataset.diffId);
+
     if (selectedDiffIds.length === 0) {
         updateStatus('לא נבחרו פערים לייבוא.', 'info', false);
         return;
     }
+
     showCustomConfirmation('האם לייבא את המשמרות הנבחרות מחילנט ולעדכן את המערכת?', async () => {
         updateStatus('מייבא משמרות נבחרות...', 'loading', true);
-        closeDifferencesModal();
+
         const shiftsToUpdate = {};
         currentDifferences.forEach(diff => {
             if (selectedDiffIds.includes(diff.id)) {
@@ -567,8 +569,23 @@ async function handleImportSelectedHilanetShifts() {
                 }
             }
         });
+
+        // שמירת המשמרות שנבחרו וטעינה מחדש של כלל הנתונים
         await saveMultipleShifts(shiftsToUpdate);
         await fetchData();
+
+        // עדכון תצוגת הפערים במודאל הפתוח
+        updateStatus('מעדכן את תצוגת הפערים...', 'loading', true);
+        const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
+        currentDifferences = compareSchedules(allGoogleSheetsShiftsForMaor, currentHilanetShifts);
+        displayDifferences(currentDifferences); // פונקציה זו מרנדרת מחדש את רשימת הפערים
+
+        // עדכון סטטוס סופי למשתמש
+        if (currentDifferences.length === 0) {
+            updateStatus('הייבוא הושלם וכל הפערים טופלו!', 'success', false);
+        } else {
+            updateStatus('הייבוא הושלם. ניתן לייבא פערים נוספים.', 'success', false);
+        }
     });
 }
 
@@ -750,8 +767,17 @@ function initializeAppLogic() {
         showChartBtn: document.getElementById('show-chart-btn'),
         chartCard: document.getElementById('chart-card'),
         monthlySummaryChartCard: document.getElementById('monthly-summary-chart-card'),
-        monthlySummaryEmployeeSelect: document.getElementById('monthly-summary-employee-select')
-    };
+        monthlySummaryEmployeeSelect: document.getElementById('monthly-summary-employee-select'),
+        customCloseDiffModalBtn: document.getElementById('custom-close-diff-modal-btn')
+    }; 
+
+    
+    if (DOMElements.customCloseDiffModalBtn) {
+        DOMElements.customCloseDiffModalBtn.addEventListener('click', closeDifferencesModal);
+    }
+
+    
+}
 
     function loadGoogleApiScripts() {
         const gapiScript = document.createElement('script');
