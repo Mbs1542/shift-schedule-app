@@ -3,8 +3,7 @@ import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts } from './
 import { closeDifferencesModal, closeModal, closeVacationModal, displayDifferences, handleModalSave, showEmployeeSelectionModal, showVacationModal } from './components/modal.js';
 import { handleExportToExcel, handleSendEmail, renderSchedule } from './components/schedule.js';
 import { EMPLOYEES, DAYS, DEFAULT_SHIFT_TIMES, VACATION_EMPLOYEE_REPLACEMENT, CLIENT_ID, SCOPES, SPREADSHEET_ID, SHEET_NAME } from './config.js';
-import { processHilanetData, compareSchedules, handleUploadHilanetBtnClick, parseHilanetXLSXForMaor, callGeminiForShiftExtraction, structureShifts } from './services/hilanetParser.js';
-import { formatDate, getWeekId, getWeekDates } from './utils.js';
+import { processHilanetData, compareSchedules, handleUploadHilanetBtnClick, parseHilanetXLSXForMaor, callGeminiForShiftExtraction, structureShifts } from './services/hilanetParser.js';import { formatDate, getWeekId, getWeekDates } from './utils.js';
 
 // --- Global Variables & State Management ---
 export let gapiInited = false;
@@ -571,15 +570,15 @@ async function handleImportSelectedHilanetShifts() {
             }
         });
 
-        // שמירת המשמרות שנבחרו וטעינה מחדש של כלל הנתונים
+        // שמירת המשמרות וטעינה מחדש של כלל הנתונים
         await saveMultipleShifts(shiftsToUpdate);
         await fetchData();
 
-        // עדכון תצוגת הפערים במודאל הפתוח
+        // עדכון תצוגת הפערים במודאל הפתוח (השיפור החדש)
         updateStatus('מעדכן את תצוגת הפערים...', 'loading', true);
         const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
         currentDifferences = compareSchedules(allGoogleSheetsShiftsForMaor, currentHilanetShifts);
-        displayDifferences(currentDifferences); // פונקציה זו מרנדרת מחדש את רשימת הפערים
+        displayDifferences(currentDifferences); // מרנדר מחדש את רשימת הפערים
 
         // עדכון סטטוס סופי למשתמש
         if (currentDifferences.length === 0) {
@@ -589,7 +588,6 @@ async function handleImportSelectedHilanetShifts() {
         }
     });
 }
-
 async function saveMultipleShifts(shiftsToImport) {
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי לייבא משמרות.', 'info', false);
@@ -769,12 +767,10 @@ function initializeAppLogic() {
         chartCard: document.getElementById('chart-card'),
         monthlySummaryChartCard: document.getElementById('monthly-summary-chart-card'),
         monthlySummaryEmployeeSelect: document.getElementById('monthly-summary-employee-select'),
-        customCloseDiffModalBtn: document.getElementById('custom-close-diff-modal-btn')
+        customCloseDiffModalBtn: document.getElementById('custom-close-diff-modal-btn') 
     };
-
-    if (DOMElements.customCloseDiffModalBtn) {
-        DOMElements.customCloseDiffModalBtn.addEventListener('click', closeDifferencesModal);
-    }
+        if (DOMElements.customCloseDiffModalBtn) { // <-- הוסף את קטע הקוד הזה
+        DOMElements.customCloseDiffModalBtn.addEventListener('click', closeDifferencesModal); }
 
     function loadGoogleApiScripts() {
         const gapiScript = document.createElement('script');
@@ -842,7 +838,8 @@ function initializeAppLogic() {
 
     const today = new Date().toISOString().split('T')[0];
     DOMElements.datePicker.value = getWeekId(today);
-
+    
     loadGoogleApiScripts();
+}
 
-} 
+document.addEventListener('DOMContentLoaded', initializeAppLogic);
