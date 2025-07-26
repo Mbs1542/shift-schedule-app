@@ -1,6 +1,3 @@
-// שם הקובץ: netlify/functions/suggest-shift.js
-
-const fetch = require('node-fetch');
 
 exports.handler = async function(event) {
     // 1. וידוא שהבקשה היא מסוג POST

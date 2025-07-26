@@ -1,4 +1,3 @@
-const fetch = require('node-fetch');
 
 exports.handler = async function(event) {
     // ודא שהבקשה היא מסוג POST
