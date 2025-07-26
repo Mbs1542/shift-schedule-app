@@ -236,7 +236,7 @@ export function displayDifferences(differences) {
 
         const gsDetails = diff.googleSheets ? `${diff.googleSheets.employee} (${diff.googleSheets.start.substring(0, 5)})` : '—';
         const hlDetails = diff.hilanet ? `${diff.hilanet.employee} (${diff.hilanet.start.substring(0, 5)})` : '—';
-        const typeHebrew = { 'added': 'נוסף בחילנט', 'removed': 'הוסר מחילנט', 'changed': 'שונה' }[diff.type];
+        const typeHebrew = { 'added': 'קיים בחילנט בלבד ', 'removed': 'קיים במערכת משמרות בלבד (עדכן גליון חילנט!!!)', 'changed': 'שונה בשני הגליונות' }[diff.type];
         const shiftTypeHebrew = diff.shiftType === 'morning' ? 'בוקר' : 'ערב';
         const dateFormatted = formatDate(diff.date, { day: '2-digit', month: '2-digit' });
 
