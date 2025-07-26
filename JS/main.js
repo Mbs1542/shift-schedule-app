@@ -3,8 +3,8 @@ import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts } from './
 import { closeDifferencesModal, closeModal, closeVacationModal, displayDifferences, handleModalSave, showEmployeeSelectionModal, showVacationModal } from './components/modal.js';
 import { handleExportToExcel, handleSendEmail, renderSchedule } from './components/schedule.js';
 import { EMPLOYEES, DAYS, DEFAULT_SHIFT_TIMES, VACATION_EMPLOYEE_REPLACEMENT, CLIENT_ID, SCOPES, SPREADSHEET_ID, SHEET_NAME } from './config.js';
-import { processHilanetData, compareSchedules, handleUploadHilanetBtnClick, parseHilanetXLSXForMaor, callGeminiForShiftExtraction, structureShifts } from './services/hilanetParser.js';import { formatDate, getWeekId, getWeekDates } from './utils.js';
-
+import { processHilanetData, compareSchedules, handleUploadHilanetBtnClick, parseHilanetXLSXForMaor, callGeminiForShiftExtraction, structureShifts } from './services/hilanetParser.js';
+import { formatDate, getWeekId, getWeekDates } from './utils.js';
 // --- Global Variables & State Management ---
 export let gapiInited = false;
 let gisInited = false;
@@ -754,6 +754,7 @@ function initializeAppLogic() {
         vacationStartDateInput: document.getElementById('vacation-start-date'),
         vacationEndDateInput: document.getElementById('vacation-end-date'),
         vacationConfirmBtn: document.getElementById('vacation-confirm-btn'),
+        vacationCancelBtn: document.getElementById('vacation-cancel-btn'), // <-- תיקון: הוספת כפתור הביטול
         downloadHilanetBtn: document.getElementById('download-hilanet-btn'),
         uploadHilanetInput: document.getElementById('upload-hilanet-input'),
         uploadHilanetBtn: document.getElementById('upload-hilanet-btn'),
@@ -767,10 +768,10 @@ function initializeAppLogic() {
         chartCard: document.getElementById('chart-card'),
         monthlySummaryChartCard: document.getElementById('monthly-summary-chart-card'),
         monthlySummaryEmployeeSelect: document.getElementById('monthly-summary-employee-select'),
-        customCloseDiffModalBtn: document.getElementById('custom-close-diff-modal-btn') 
+        customCloseDiffModalBtn: document.getElementById('custom-close-diff-modal-btn')
     };
-        if (DOMElements.customCloseDiffModalBtn) { // <-- הוסף את קטע הקוד הזה
-        DOMElements.customCloseDiffModalBtn.addEventListener('click', closeDifferencesModal); }
+
+    // --- הגדרת מאזיני אירועים ---
 
     function loadGoogleApiScripts() {
         const gapiScript = document.createElement('script');
@@ -786,8 +787,9 @@ function initializeAppLogic() {
         document.head.appendChild(gisScript);
     }
 
+    // Event listeners grouped together for clarity
+    if (DOMElements.customCloseDiffModalBtn) DOMElements.customCloseDiffModalBtn.addEventListener('click', closeDifferencesModal);
     if (DOMElements.uploadHilanetInput) DOMElements.uploadHilanetInput.addEventListener('change', handleUploadHilanet);
-
     if (DOMElements.monthlySummaryEmployeeSelect) {
         EMPLOYEES.forEach(emp => {
             const option = document.createElement('option');
@@ -797,7 +799,6 @@ function initializeAppLogic() {
         });
         DOMElements.monthlySummaryEmployeeSelect.addEventListener('change', updateMonthlySummaryChart);
     }
-
     if (DOMElements.datePicker) DOMElements.datePicker.addEventListener('change', async () => {
         const selectedDate = DOMElements.datePicker.value;
         const weekIdForSelectedDate = getWeekId(selectedDate);
@@ -824,9 +825,8 @@ function initializeAppLogic() {
         closeVacationModal();
         handleVacationShift(vacationingEmployee, startDate, endDate);
     });
-    if (DOMElements.vacationCancelBtn) DOMElements.vacationCancelBtn.addEventListener('click', closeVacationModal);
+    if (DOMElements.vacationCancelBtn) DOMElements.vacationCancelBtn.addEventListener('click', closeVacationModal); // <-- תיקון: הפעלת הכפתור
     if (DOMElements.uploadHilanetBtn) DOMElements.uploadHilanetBtn.addEventListener('click', handleUploadHilanetBtnClick);
-    if (DOMElements.uploadHilanetInput) DOMElements.uploadHilanetInput.addEventListener('change', handleUploadHilanet);
     if (DOMElements.closeDifferencesModalBtn) DOMElements.closeDifferencesModalBtn.addEventListener('click', closeDifferencesModal);
     if (DOMElements.importSelectedHilanetShiftsBtn) DOMElements.importSelectedHilanetShiftsBtn.addEventListener('click', handleImportSelectedHilanetShifts);
     if (DOMElements.downloadDifferencesBtn) DOMElements.downloadDifferencesBtn.addEventListener('click', handleDownloadDifferences);
@@ -836,9 +836,10 @@ function initializeAppLogic() {
         if (e.target === DOMElements.differencesModal) closeDifferencesModal();
     });
 
+    // --- Initial setup ---
     const today = new Date().toISOString().split('T')[0];
     DOMElements.datePicker.value = getWeekId(today);
-    
+
     loadGoogleApiScripts();
 }
 
