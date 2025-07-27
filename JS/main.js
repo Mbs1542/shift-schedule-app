@@ -228,16 +228,21 @@ async function handleGeminiSuggestShift() {
     const shiftType = DOMElements.shiftModal.dataset.shift;
     const otherShiftEmployee = DOMElements.shiftModal.dataset.otherShiftEmployee || 'none';
 
-    // **שיפור**: מתן הקשר וחוקים מפורטים ל-Gemini
-    
-    // 1. קבלת רשימת עובדים זמינים (ללא טכנאי מחליף)
-    const availableEmployees = EMPLOYEES.filter(e => e !== VACATION_EMPLOYEE_REPLACEMENT);
+    // **שיפור**: הוספת בדיקה של השבוע הקודם
+    // 1. חישוב המזהה של השבוע הקודם
+    const currentWeekDate = new Date(weekId);
+    const previousWeekDate = new Date(currentWeekDate.setDate(currentWeekDate.getDate() - 7));
+    const previousWeekId = getWeekId(previousWeekDate.toISOString().split('T')[0]);
 
-    // 2. הכנת מידע על הסידור השבועי הנוכחי
+    // 2. בדיקה מי עבד בשישי בוקר בשבוע שעבר
+    const previousWeekSchedule = allSchedules[previousWeekId] || {};
+    const lastFridayWorker = previousWeekSchedule['שישי']?.morning?.employee || 'אף אחד';
+
+    const availableEmployees = EMPLOYEES.filter(e => e !== VACATION_EMPLOYEE_REPLACEMENT);
     const scheduleDataForWeek = allSchedules[weekId] || {};
     let scheduleContext = "מצב נוכחי בסידור השבוע:\n";
     DAYS.forEach(dayName => {
-        if (dayName === 'שבת') return; // דילוג על שבת
+        if (dayName === 'שבת') return;
         const dayData = scheduleDataForWeek[dayName] || {};
         const morningShift = dayData.morning?.employee && dayData.morning.employee !== 'none' ? dayData.morning.employee : 'פנוי';
         let eveningShift = 'פנוי';
@@ -247,7 +252,7 @@ async function handleGeminiSuggestShift() {
         scheduleContext += `- יום ${dayName}: בוקר - ${morningShift}, ערב - ${eveningShift}\n`;
     });
 
-    // 3. בניית ההנחיה המפורטת עם החוקים החדשים
+    // 3. בניית ההנחיה המפורטת עם החוק החדש
     const context = `
 אתה מומחה לשיבוץ עובדים במשמרות. משימתך היא להציע עובד אחד מתאים למשמרת ספציפית, בהתבסס על מערכת חוקים מורכבת.
 
@@ -260,11 +265,15 @@ ${availableEmployees.join(', ')}
 
 ${scheduleContext}
 
+מידע נוסף:
+- עובד שעבד בשישי בוקר בשבוע שעבר: ${lastFridayWorker}
+
 עליך לפעול לפי החוקים הבאים בקפדנות:
-1.  **איסור משמרת כפולה:** לעובד אסור לעבוד שתי משמרות באותו היום. העובד במשמרת השנייה ביום ${day} הוא: ${otherShiftEmployee === 'none' ? 'אף אחד' : otherShiftEmployee}.
+1.  **איסור משמרת כפולה:** לעובד אסור לעבוד שתי משמרות באותו היום.
 2.  **חוק חמישי-שישי:** עובד שעובד ביום שישי בבוקר, לא יכול לעבוד ביום חמישי בערב שלפניו.
 3.  **מגבלות על עובד משמרת שישי:** אם אתה משבץ למשמרת **בוקר ביום שישי**, העובד שתבחר לא יכול לעבוד יותר מ-4 משמרות בוקר ו-2 משמרות ערב בסך הכל באותו שבוע (כולל משמרת זו).
-4.  **מגבלות על עובד משמרת חמישי ערב:** אם אתה משבץ למשמרת **ערב ביום חמישי**, העובד שתבחר לא יכול לעבוד ביום שישי כלל. בנוסף, הוא לא יכול לעבוד יותר מ-3 משמרות ערב ו-2 משמרות בוקר בסך הכל באותו שבוע (כולל משמרת זו).
+4.  **מגבלות על עובד משמרת חמישי ערב:** אם אתה משבץ למשמרת **ערב ביום חמישי**, העובד שתבחר לא יכול לעבוד ביום שישי כלל, ולא יותר מ-3 משמרות ערב ו-2 משמרות בוקר באותו שבוע.
+5.  **חוק רוטציית שישי:** אם אתה משבץ למשמרת **בוקר ביום שישי**, אסור לשבץ את העובד שעבד בשישי בוקר בשבוע שעבר (${lastFridayWorker}).
 
 בהתחשב בכל הנתונים והחוקים, מיהו העובד המתאים ביותר למשמרת?
 השב **רק עם שם העובד**. אם אף עובד אינו עומד בכל החוקים, השב "אף אחד".
@@ -286,9 +295,8 @@ ${scheduleContext}
 
         const result = await response.json();
         const suggestedEmployee = result.suggestion.trim();
-
         const suggestedBtn = DOMElements.modalOptions.querySelector(`button[data-employee="${suggestedEmployee}"]`);
-        
+
         if (suggestedBtn && !suggestedBtn.disabled) {
             suggestedBtn.click();
             updateStatus(`Gemini הציע: ${suggestedEmployee}`, 'success', false);
