@@ -1,3 +1,6 @@
+// Add this line at the top
+export const DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
 // --- General Helper Functions ---
 /**
  * Formats a Date object into a localized string.
