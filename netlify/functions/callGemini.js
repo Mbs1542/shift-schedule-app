@@ -16,7 +16,81 @@ exports.handler = async function(event) {
             console.error("Gemini API key is not configured in Netlify.");
             return { statusCode: 500, body: JSON.stringify({ error: "Server configuration error: API key is missing." }) };
         }
+        // File: netlify/functions/callGemini.js
+
+exports.handler = async function(event) {
+    // ודא שהבקשה היא מסוג POST
+    if (event.httpMethod !== 'POST') {
+        return { statusCode: 405, body: 'Method Not Allowed' };
+    }
+
+    try {
+        // שים לב ששם המשתנה שונה ל-imageData כדי להיות תואם לקוד ששלחנו קודם
+        const { imageData, prompt } = JSON.parse(event.body);
         
+        const apiKey = process.env.GEMINI_API_KEY;
+
+        if (!apiKey) {
+            console.error("Gemini API key is not configured in Netlify.");
+            return { statusCode: 500, body: JSON.stringify({ error: "Server configuration error: API key is missing." }) };
+        }
+        
+        if (!imageData || !prompt) {
+             return { statusCode: 400, body: JSON.stringify({ error: "Missing imageData or prompt in request." }) };
+        }
+
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+        // ======================= התיקון המרכזי כאן =======================
+        const payload = {
+            contents: [{
+                parts: [
+                    { text: prompt },
+                    { 
+                        inlineData: { // <-- תוקן ל-camelCase
+                            mimeType: "image/jpeg", // <-- תוקן ל-camelCase
+                            data: imageData // <-- הוסר ה-split המיותר
+                        } 
+                    }
+                ]
+            }],
+             // ניתן למחוק את ה-generationConfig אם אין בו צורך מיוחד
+            generationConfig: {
+                responseMimeType: "application/json",
+            }
+        };
+        // =================================================================
+
+        const geminiResponse = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!geminiResponse.ok) {
+            const errorBody = await geminiResponse.json();
+            console.error("Gemini API Error:", errorBody);
+            return {
+                statusCode: geminiResponse.status,
+                body: JSON.stringify({ error: `Gemini API Error: ${errorBody.error.message}` })
+            };
+        }
+
+        const result = await geminiResponse.json();
+        
+        return {
+            statusCode: 200,
+            body: JSON.stringify(result)
+        };
+
+    } catch (error) {
+        console.error("Error in Netlify function:", error);
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ error: error.message })
+        };
+    }
+};
         // בדיקה אם הנתונים מהלקוח הגיעו
         if (!imageDataBase64 || !prompt) {
              return { statusCode: 400, body: JSON.stringify({ error: "Missing imageDataBase64 or prompt in request." }) };
