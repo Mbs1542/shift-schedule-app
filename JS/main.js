@@ -486,31 +486,45 @@ async function getAllGoogleSheetsShiftsForMaor() {
 }
 
 async function handleImportSelectedHilanetShifts() {
+    // This part is new: Get selected shift IDs from the checkboxes in the modal
+    const selectedDiffIds = Array.from(DOMElements.differencesDisplay.querySelectorAll('.difference-checkbox:checked'))
+        .map(cb => cb.dataset.diffId);
+
+    if (selectedDiffIds.length === 0) {
+        updateStatus('לא נבחרו פערים לייבוא.', 'info', false);
+        return;
+    }
+
     updateStatus('מייבא משמרות נבחרות...', 'loading', true);
     try {
-        const { updatedSchedules, importedCount, selectedCount } = hilanetParser.handleImportSelectedHilanetShifts(currentDifferences, allSchedules);        
-        
-        allSchedules = updatedSchedules;
-        await saveFullSchedule(allSchedules);
-        
-        const currentWeekId = getWeekId(DOMElements.datePicker.value);
-        renderSchedule(currentWeekId);
-        
-        if (selectedCount > 0) {
-            let message = `מתוך ${selectedCount} פערים שנבחרו, ${importedCount} משמרות יובאו ועודכנו בהצלחה.`;
-            if (selectedCount > importedCount) {
-                message += ` ${selectedCount - importedCount} משמרות כבר היו מעודכנות.`;
-            }
-            updateStatus(message, 'success', false);
+        // Create a filtered list of differences that the user actually selected
+        const selectedDifferences = currentDifferences.filter(diff => selectedDiffIds.includes(diff.id));
+
+        // The hilanetParser function will now receive only the selected differences
+        const { updatedSchedules, importedCount } = hilanetParser.handleImportSelectedHilanetShifts(selectedDifferences, allSchedules);
+
+        if (importedCount > 0) {
+            allSchedules = updatedSchedules;
+            await saveFullSchedule(allSchedules); // Ensure changes are saved to Google Sheets
+
+            // Refresh the main schedule view to show the imported shift
+            const currentWeekId = getWeekId(DOMElements.datePicker.value);
+            renderSchedule(currentWeekId);
+
+            // This is key: Re-compare and refresh the differences modal instead of closing it
+            const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
+            currentDifferences = hilanetParser.compareSchedules(allGoogleSheetsShiftsForMaor, currentHilanetShifts);
+            displayDifferences(currentDifferences); // Refresh the modal content
+
+            updateStatus(`יובאו ${importedCount} משמרות בהצלחה.`, 'success', false);
         } else {
-            updateStatus('לא נבחרו פערים לייבוא.', 'info', false);
+            updateStatus('לא נמצאו משמרות לייבא. ייתכן שהן כבר מעודכנות.', 'info', false);
         }
     } catch (error) {
         console.error("שגיאה במהלך ייבוא משמרות מחילנט:", error);
         updateStatus('שגיאה בעדכון המשמרות.', 'error', false);
-    } finally {
-        closeDifferencesModal();
     }
+    // The call to closeDifferencesModal() is removed from here.
 }
 
 function handleDownloadDifferences() {

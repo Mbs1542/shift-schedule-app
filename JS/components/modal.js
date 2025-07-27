@@ -196,17 +196,20 @@ export function displayDifferences(differences) {
     const statusArea = document.getElementById('differences-modal-status');
     displayArea.innerHTML = '';
 
+    // Handle the case where no differences are found
     if (differences.length === 0) {
         statusArea.textContent = 'לא נמצאו פערים בין סידור העבודה לקובץ חילנט.';
-        modal.classList.remove('hidden');
-        // Make sure buttons that rely on differences are hidden/disabled
+        displayArea.innerHTML = '<p class="text-center p-4">הכל מעודכן! ✅</p>';
         DOMElements.importSelectedHilanetShiftsBtn.style.display = 'none';
         DOMElements.downloadDifferencesBtn.style.display = 'none';
-        document.querySelector('.select-all-container').style.display = 'none';
+        // Hide the "select all" checkbox if it exists
+        const selectAllContainer = document.querySelector('.select-all-container');
+        if (selectAllContainer) selectAllContainer.style.display = 'none';
+        modal.classList.remove('hidden'); // Show the modal to confirm no differences
         return;
     }
 
-    // Ensure buttons are visible if they were hidden
+    // Restore buttons and "select all" if they were hidden
     DOMElements.importSelectedHilanetShiftsBtn.style.display = 'inline-block';
     DOMElements.downloadDifferencesBtn.style.display = 'inline-block';
     const selectAllContainer = document.querySelector('.select-all-container');
@@ -237,16 +240,40 @@ export function displayDifferences(differences) {
     const tbody = table.querySelector('tbody');
     differences.forEach(diff => {
         const row = tbody.insertRow();
-        row.className = 'hover:bg-slate-50';
-        
+        // --- THIS IS THE NEW STYLING LOGIC ---
+        let rowClass = 'hover:bg-slate-100';
+        let typeHebrew = '';
+
+        switch(diff.type) {
+            case 'added': // Shift exists in Hilanet but not in our system
+                rowClass = 'bg-green-100 hover:bg-green-200';
+                typeHebrew = 'קיים בחילנט בלבד';
+                break;
+            case 'removed': // Shift exists in our system but not in Hilanet
+                rowClass = 'bg-red-100 hover:bg-red-200';
+                typeHebrew = 'קיים במערכת בלבד';
+                break;
+            case 'changed': // Shift exists in both but has different times/employee
+                rowClass = 'bg-yellow-100 hover:bg-yellow-200';
+                typeHebrew = 'שונה';
+                break;
+        }
+        row.className = rowClass;
+        // --- END OF NEW STYLING LOGIC ---
+
         const formatDetails = (shift) => shift ? `${shift.employee} (${shift.start.substring(0, 5)}-${shift.end.substring(0, 5)})` : '—';
         
         const gsDetails = formatDetails(diff.googleSheets);
         const hlDetails = formatDetails(diff.hilanet);
-        const typeHebrew = { 'added': 'קיים בחילנט בלבד', 'removed': 'קיים במערכת בלבד', 'changed': 'שונה' }[diff.type];
+
+        // Only allow importing for shifts that are 'added' or 'changed'
+        const canImport = diff.type === 'added' || diff.type === 'changed';
+        const checkboxHTML = canImport 
+            ? `<input type="checkbox" class="difference-checkbox h-4 w-4 text-blue-600 rounded" data-diff-id="${diff.id}">`
+            : ''; // No checkbox for 'removed' shifts as there's nothing to import
 
         row.innerHTML = `
-            <td class="p-2 border border-slate-300 text-center"><input type="checkbox" class="difference-checkbox h-4 w-4 text-blue-600 rounded" data-diff-id="${diff.id}"></td>
+            <td class="p-2 border border-slate-300 text-center">${checkboxHTML}</td>
             <td class="p-2 border border-slate-300 font-medium">${typeHebrew}</td>
             <td class="p-2 border border-slate-300">${formatDate(diff.date, { day: '2-digit', month: '2-digit' })} (${diff.dayName})</td>
             <td class="p-2 border border-slate-300">${diff.shiftType === 'morning' ? 'בוקר' : 'ערב'}</td>
@@ -258,19 +285,19 @@ export function displayDifferences(differences) {
     displayArea.appendChild(table);
     
     const selectAllCheckbox = document.getElementById('select-all-differences');
-    
-    selectAllCheckbox.checked = false; 
-
-    selectAllCheckbox.addEventListener('change', (e) => {
-        const checkboxes = document.querySelectorAll('.difference-checkbox');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = e.target.checked;
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false; 
+        selectAllCheckbox.addEventListener('change', (e) => {
+            // Only check the checkboxes that are not disabled
+            const checkboxes = document.querySelectorAll('.difference-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = e.target.checked;
+            });
         });
-    });
+    }
 
     modal.classList.remove('hidden');
 }
-/** Closes the differences modal. */
 export function closeDifferencesModal() {
     DOMElements.differencesModal.classList.add('hidden');
 }
