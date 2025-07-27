@@ -448,7 +448,7 @@ async function handleUploadHilanet(event) {
                 // --- NEW LOGIC: Parse shifts directly from text ---
                 updateStatus('מפענח משמרות מתוך הטקסט...', 'loading', true);
                 // Assuming parseShiftsFromTextItems is available here
-                const allShifts = parseShiftsFromTextItems(textContent.items); 
+                const allShifts = hilanetParser.parseShiftsFromTextItems(textContent.items);
                 
                 if (allShifts.length === 0) {
                     updateStatus('לא נמצאו משמרות לניתוח בקובץ ה-PDF.', 'info');

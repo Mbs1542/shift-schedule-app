@@ -433,5 +433,5 @@ function parseShiftsFromTextItems(textItems) {
     return shifts;
 }
 
-// Don't forget to export it if it's in a separate module
-// export { parseShiftsFromTextItems };
+
+export { parseShiftsFromTextItems };
