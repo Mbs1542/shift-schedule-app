@@ -527,20 +527,34 @@ async function getAllGoogleSheetsShiftsForMaor() {
                 const dateString = dateObj.toISOString().split('T')[0];
                 const dayName = DAYS[dateObj.getDay()];
                 const dayData = weekData[dayName] || {};
+
+                // **התיקון כאן: פונקציית עזר לבדיקה והיפוך שעות**
+                const normalizeShift = (shift) => {
+                    if (!shift || !shift.start || !shift.end) {
+                        return shift;
+                    }
+                    let { start, end } = shift;
+                    // בדיקת שפיות: אם שעת הסיום מוקדמת משעת ההתחלה, הפוך ביניהן
+                    if (new Date(`1970-01-01T${end}`) < new Date(`1970-01-01T${start}`)) {
+                        [start, end] = [end, start]; // היפוך השעות
+                    }
+                    return { ...shift, start, end };
+                };
+
+                // החלת הנורמליזציה על כל משמרת שנקראת מ-Google Sheets
                 if (dayData.morning && dayData.morning.employee === 'מאור') {
                     if (!maorShifts[dateString]) maorShifts[dateString] = {};
-                    maorShifts[dateString].morning = { ...dayData.morning };
+                    maorShifts[dateString].morning = normalizeShift({ ...dayData.morning });
                 }
                 if (dayData.evening && dayData.evening.employee === 'מאור') {
                     if (!maorShifts[dateString]) maorShifts[dateString] = {};
-                    maorShifts[dateString].evening = { ...dayData.evening };
+                    maorShifts[dateString].evening = normalizeShift({ ...dayData.evening });
                 }
             });
         }
     }
     return maorShifts;
 }
-
 async function handleImportSelectedHilanetShifts() {
     // This part is new: Get selected shift IDs from the checkboxes in the modal
     const selectedDiffIds = Array.from(DOMElements.differencesDisplay.querySelectorAll('.difference-checkbox:checked'))
