@@ -6,7 +6,6 @@ exports.handler = async function(event) {
 
     try {
         // 2. Parse the incoming data from the browser.
-        // The variable name 'imageData' must match what hilanetParser.js sends.
         const { imageData, prompt } = JSON.parse(event.body);
         
         // 3. Securely get the API key from Netlify's environment variables
@@ -22,6 +21,11 @@ exports.handler = async function(event) {
              return { statusCode: 400, body: JSON.stringify({ error: "Missing imageData or prompt in request." }) };
         }
 
+        // ======================= THE FINAL FIX IS HERE =======================
+        // This line removes the "data:image/jpeg;base64," prefix from the string.
+        const pureBase64 = imageData.includes(',') ? imageData.split(',')[1] : imageData;
+        // =====================================================================
+
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
         // 5. This is the corrected payload to send to Google
@@ -32,7 +36,7 @@ exports.handler = async function(event) {
                     { 
                         inlineData: {
                             mimeType: "image/jpeg",
-                            data: imageData 
+                            data: pureBase64 // Use the cleaned data
                         } 
                     }
                 ]
