@@ -360,74 +360,48 @@ async function handleVacationShift(vacationingEmployee, startDateString, endDate
     }
 }
 
+// קובץ: JS/main.js
+
+// ... (קוד קודם)
+
 async function handleUploadHilanet(event) {
     if (isProcessing) {
         updateStatus('תהליך אחר כבר רץ, אנא המתן.', 'info');
         return;
     }
     const file = event.target.files[0];
-    if (!file) return;
+    if (!file || file.type !== 'application/pdf') {
+        updateStatus('אנא בחר קובץ PDF בלבד.', 'info');
+        return;
+    }
 
     setProcessingStatus(true);
     updateStatus('מעבד קובץ PDF...', 'loading', true);
 
     try {
-        const textReader = new FileReader();
-        textReader.readAsText(file);
-        textReader.onload = async (e) => {
-            const rawText = e.target.result;
-            // First, extract metadata from the raw text
-            const { employeeName, detectedMonth, detectedYear } = hilanetParser.processHilanetData(rawText);
+        const fileReader = new FileReader();
+        fileReader.readAsArrayBuffer(file);
 
-            if (file.type === 'application/pdf') {
-                // Now, process the PDF as images, passing the metadata
-                currentHilanetShifts = await processPdfFileAsImages(file, detectedMonth, detectedYear, employeeName);
-            } else if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
-                // This part needs adjustment if XLSX also needs metadata extraction
-                currentHilanetShifts = hilanetParser.parseHilanetXLSXForMaor(json);
-            } else {
-                 updateStatus('סוג קובץ לא נתמך. אנא העלה קובץ PDF או Excel.', 'error');
-                 return; // Stop further processing
-            }
-
-            // After processing, compare schedules
-            if (Object.keys(currentHilanetShifts).length > 0) {
-                updateStatus('משווה סידורים...', 'loading', true);
-                const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
-                currentDifferences = hilanetParser.compareSchedules(allGoogleSheetsShiftsForMaor, currentHilanetShifts);
-                displayDifferences(currentDifferences);
-                updateStatus('השוואת הסידורים הושלמה!', 'success');
-            } else {
-                updateStatus('לא נמצאו משמרות לניתוח בקובץ.', 'info');
-            }
-        };
-
-    } catch (error) {
-        displayAPIError(error, 'אירעה שגיאה כללית בעת עיבוד הקובץ.');
-    } finally {
-        event.target.value = '';
-        setProcessingStatus(false);
-    }
-}
-
-async function processPdfFileAsImages(file, month, year, employeeName) {
-    const fileReader = new FileReader();
-    fileReader.readAsArrayBuffer(file);
-
-    return new Promise((resolve, reject) => {
-        fileReader.onload = async (event) => {
+        fileReader.onload = async (e) => {
             try {
-                const pdfData = new Uint8Array(event.target.result);
+                const pdfData = new Uint8Array(e.target.result);
                 const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
-                const allShifts = [];
+                
+                // שלב 1: חילוץ טקסט נקי מהעמוד הראשון לצורך מטא-דאטה
+                const firstPage = await pdf.getPage(1);
+                const textContent = await firstPage.getTextContent();
+                const rawText = textContent.items.map(item => item.str).join(' ');
+                
+                const { employeeName, detectedMonth, detectedYear } = hilanetParser.processHilanetData(rawText);
 
+                // שלב 2: עיבוד כל עמוד כתמונה ושליחה ל-Gemini
+                const allShifts = [];
                 for (let i = 1; i <= pdf.numPages; i++) {
                     updateStatus(`מעבד עמוד ${i} מתוך ${pdf.numPages}...`, 'loading', true);
                     const page = await pdf.getPage(i);
                     
                     const scale = 1.5;
-                    const viewport = page.getViewport({ scale: scale });
-                    
+                    const viewport = page.getViewport({ scale });
                     const canvas = document.createElement('canvas');
                     const context = canvas.getContext('2d');
                     canvas.height = viewport.height;
@@ -435,39 +409,50 @@ async function processPdfFileAsImages(file, month, year, employeeName) {
 
                     await page.render({ canvasContext: context, viewport: viewport }).promise;
                     
-                    const imageDataBase64 = canvas.toDataURL('image/jpeg', 0.7); 
+                    const imageDataBase64 = canvas.toDataURL('image/jpeg', 0.7);
 
-                    try {
-                        const shiftsFromPage = await hilanetParser.callGeminiForShiftExtraction(imageDataBase64, month, year, employeeName);
-                        if (shiftsFromPage && shiftsFromPage.length > 0) {
-                            allShifts.push(...shiftsFromPage);
-                        }
-                    } catch (error) {
-                        console.error(`Error processing page ${i}:`, error);
-                        throw new Error(error.message || `Failed to process page ${i}.`);
+                    const shiftsFromPage = await hilanetParser.callGeminiForShiftExtraction(imageDataBase64, detectedMonth, detectedYear, employeeName);
+                    if (shiftsFromPage && shiftsFromPage.length > 0) {
+                        allShifts.push(...shiftsFromPage);
                     }
                 }
-                
+
+                // שלב 3: המשך התהליך עם המשמרות שחולצו
                 if (allShifts.length === 0) {
-                    updateStatus('לא נמצאו משמרות לניתוח בקובץ ה-PDF.', 'info', false);
-                    resolve(null);
-                } else {
-                    const structuredShifts = hilanetParser.structureShifts(allShifts, month, year, employeeName);
-                    resolve(structuredShifts);
+                    updateStatus('לא נמצאו משמרות לניתוח בקובץ ה-PDF.', 'info');
+                    return; // אין צורך להמשיך
                 }
 
+                currentHilanetShifts = hilanetParser.structureShifts(allShifts, detectedMonth, detectedYear, employeeName);
+                
+                updateStatus('משווה סידורים...', 'loading', true);
+                const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
+                currentDifferences = hilanetParser.compareSchedules(allGoogleSheetsShiftsForMaor, currentHilanetShifts);
+                
+                displayDifferences(currentDifferences);
+                updateStatus('השוואת הסידורים הושלמה!', 'success');
+
             } catch (error) {
-                console.error("Error in processPdfFileAsImages:", error);
-                reject(error);
+                // תפיסת שגיאות מכל התהליך הפנימי
+                displayAPIError(error, 'אירעה שגיאה בעיבוד הקובץ.');
+            } finally {
+                // איפוס והפעלה מחדש של כפתורים
+                event.target.value = ''; 
+                setProcessingStatus(false);
             }
         };
 
         fileReader.onerror = (error) => {
-            console.error("FileReader error:", error);
-            reject(error);
+            displayAPIError(error, 'שגיאה בקריאת הקובץ.');
+            setProcessingStatus(false);
         };
-    });
+
+    } catch (error) {
+        displayAPIError(error, 'אירעה שגיאה כללית בהעלאת הקובץ.');
+        setProcessingStatus(false);
+    }
 }
+
 
 async function getAllGoogleSheetsShiftsForMaor() {
     const maorShifts = {};
