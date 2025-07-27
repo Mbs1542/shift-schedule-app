@@ -571,66 +571,39 @@ function updateDifferencesModalStatus(text, type, showSpinner = false) {
 /**
  * Handles importing selected shifts from the Hilanet comparison.
  */
+/**
+ * Handles the import of selected shifts from the differences modal.
+ */
 async function handleImportSelectedHilanetShifts() {
-    const selectedDiffIds = Array.from(document.querySelectorAll('.difference-checkbox:checked'))
-        .map(checkbox => checkbox.dataset.diffId);
-
-    if (selectedDiffIds.length === 0) {
-        updateStatus('לא נבחרו פערים לייבוא.', 'info', false);
-        return;
-    }
-    
-    // Disable buttons during import
-    DOMElements.importSelectedHilanetShiftsBtn.disabled = true;
-    DOMElements.closeDifferencesModalBtn.disabled = true;
-
-    updateDifferencesModalStatus('מתחיל בייבוא...', 'loading', true);
+    updateStatus('מייבא משמרות נבחרות...', 'loading', true);
 
     try {
-        currentDifferences.forEach(diff => {
-            if (selectedDiffIds.includes(diff.id)) {
-                const weekId = getWeekId(diff.date);
-                const dayName = diff.dayName;
-
-                if (!allSchedules[weekId]) allSchedules[weekId] = {};
-                if (!allSchedules[weekId][dayName]) allSchedules[weekId][dayName] = {};
-
-                let shiftData;
-                if (diff.type === 'added' || diff.type === 'changed') {
-                    shiftData = { ...diff.hilanet };
-                } else if (diff.type === 'removed') {
-                    shiftData = { employee: 'none', start: DEFAULT_SHIFT_TIMES[diff.shiftType].start, end: DEFAULT_SHIFT_TIMES[diff.shiftType].end };
-                }
-                allSchedules[weekId][dayName][diff.shiftType] = shiftData;
-            }
-        });
-
-        updateDifferencesModalStatus('שומר שינויים ב-Google Sheets...', 'loading', true);
-        await saveFullSchedule(allSchedules);
-
-        updateDifferencesModalStatus('מרענן נתונים...', 'loading', true);
-        await fetchData();
-
-        updateDifferencesModalStatus('מבצע השוואה מחדש...', 'loading', true);
-        const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
+        const { updatedSchedules, importedCount, selectedCount } = processHilanetData.handleImportSelectedHilanetShifts(currentDifferences, allSchedules);
         
-        // Filter out the differences that were just imported
-        currentDifferences = compareSchedules(allGoogleSheetsShiftsForMaor, currentHilanetShifts);
-        displayDifferences(currentDifferences);
+        // עדכון המצב הגלובלי של האפליקציה
+        allSchedules = updatedSchedules;
 
-        if (currentDifferences.length === 0) {
-            updateDifferencesModalStatus('הייבוא הושלם בהצלחה! כל הפערים טופלו.', 'success');
+        await saveFullSchedule(allSchedules);
+        
+        const currentWeekId = getWeekId(DOMElements.datePicker.value);
+        renderSchedule(currentWeekId);
+        
+        // מתן משוב למשתמש
+        if (selectedCount > 0) {
+            let message = `מתוך ${selectedCount} פערים שנבחרו, ${importedCount} משמרות יובאו ועודכנו בהצלחה.`;
+            if (selectedCount > importedCount) {
+                message += ` ${selectedCount - importedCount} משמרות כבר היו מעודכנות.`;
+            }
+            updateStatus(message, 'success', false);
         } else {
-             updateDifferencesModalStatus(`הייבוא הושלם! נותרו ${currentDifferences.length} פערים.`, 'info');
+            updateStatus('לא נבחרו פערים לייבוא.', 'info', false);
         }
 
     } catch (error) {
-        displayAPIError(error, 'שגיאה קריטית בתהליך הייבוא.');
-        updateDifferencesModalStatus('הייבוא נכשל. בדוק את ה-console לשגיאות.', 'error');
+        console.error("שגיאה במהלך ייבוא משמרות מחילנט:", error);
+        updateStatus('שגיאה בעדכון המשמרות.', 'error', false);
     } finally {
-        // Re-enable buttons
-        DOMElements.importSelectedHilanetShiftsBtn.disabled = false;
-        DOMElements.closeDifferencesModalBtn.disabled = false;
+        closeDifferencesModal();
     }
 }
 

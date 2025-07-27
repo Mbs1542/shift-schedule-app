@@ -89,20 +89,33 @@ export function processHilanetData(rawText) {
  * קורא לפונקציית השרת של Gemini כדי לחלץ משמרות מתמונה.
  */
 export async function callGeminiForShiftExtraction(imageDataBase64, month, year, employeeName) {
+    // תיקון: שימוש במשתנים month ו-year שהתקבלו כפרמטרים
     const prompt = `
-        נתח את טבלת הנוכחות בתמונה המצורפת עבור העובד ${employeeName} לחודש ${month}/${year}.
-        התעלם משורות ריקות או שורות סיכום.
-        עבור כל שורה עם תאריך ושעות, חלץ את הנתונים בפורמט JSON בלבד.
-        הפורמט הרצוי הוא מערך של אובייקטים, כאשר כל אובייקט מייצג יום עבודה:
-        [
-          { "day": <מספר היום בחודש>, "startTime": "HH:MM", "endTime": "HH:MM" },
-          ...
-        ]
-        אם יש כניסה ויציאה באותה שורה, זו משמרת אחת.
-        אם יש שתי כניסות ושתי יציאות, פצל אותן לשתי משמרות נפרדות באותו יום.
-        השב עם JSON בלבד, ללא טקסט מקדים או הסברים.
-    `;
+        You are an expert at extracting structured data from tables in Hebrew documents.
+        The provided image is a page from a work schedule report for month ${month}/${year} for employee ${employeeName}.
 
+        Your task is to find the main table containing daily entries. For each row that represents a day, extract the following information:
+        1. "day": The day of the month (the number, e.g., '01', '02', '03').
+        2. "dayOfWeekHebrew": The Hebrew day of the week (e.g., 'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'). If not explicitly present, infer from the date.
+        3. "entryTime": The entry time (כניסה) in HH:MM format. If not present, use an empty string.
+        4. "exitTime": The exit time (יציאה) in HH:MM format. If not present, use an empty string.
+        5. "comments": Any relevant comments or special status for the day (e.g., 'חופשה', 'ש'). If no comments, use an empty string.
+
+        - Extract data from all rows that represent a day, even if no times are present (e.g., days off).
+        - Ensure times are always in HH:MM format (pad with leading zero if needed, e.g., "8:00" -> "08:00").
+        - Respond ONLY with a valid JSON array of objects. Do not include markdown, text, or any explanations.
+
+        Example of a valid response:
+        [
+          { "day": 1, "dayOfWeekHebrew": "ג", "entryTime": "08:00", "exitTime": "16:00", "comments": "" },
+          { "day": 2, "dayOfWeekHebrew": "ד", "entryTime": "", "exitTime": "", "comments": "" },
+          { "day": 3, "dayOfWeekHebrew": "ה", "entryTime": "07:00", "exitTime": "12:00", "comments": "" },
+          { "day": 4, "dayOfWeekHebrew": "ו", "entryTime": "07:00", "exitTime": "16:00", "comments": "" },
+          { "day": 5, "dayOfWeekHebrew": "ש", "entryTime": "", "exitTime": "", "comments": "ש" },
+          { "day": 6, "dayOfWeekHebrew": "א", "entryTime": "13:00", "exitTime": "22:00", "comments": "" }
+        ]
+    `; // סוף ה-prompt
+    
     try {
         const response = await fetch('/.netlify/functions/callGemini', {
             method: 'POST',
@@ -111,7 +124,14 @@ export async function callGeminiForShiftExtraction(imageDataBase64, month, year,
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
+            // נסה לקרוא את גוף השגיאה כ-JSON, אך הימנע מקריסה אם הוא ריק
+            let errorData = {};
+            try {
+                errorData = await response.json();
+            } catch (e) {
+                // גוף השגיאה אינו JSON או שהוא ריק
+                errorData = { error: `Server responded with status: ${response.status}` };
+            }
             throw new Error(errorData.error || 'Failed to communicate with the server.');
         }
 
@@ -137,8 +157,10 @@ export function structureShifts(shifts, month, year, employeeName) {
     if (!Array.isArray(shifts)) return structured;
 
     shifts.forEach(shift => {
+        if (!shift.day || !shift.startTime || !shift.endTime) return; // דלג על ימים ללא נתונים מלאים
+
         const dateString = `${year}-${String(month).padStart(2, '0')}-${String(shift.day).padStart(2, '0')}`;
-        const shiftType = parseInt(shift.startTime.split(':')[0], 10) < 10 ? 'morning' : 'evening';
+        const shiftType = parseInt(shift.startTime.split(':')[0], 10) < 12 ? 'morning' : 'evening';
         
         if (!structured[dateString]) {
             structured[dateString] = {};
@@ -154,7 +176,7 @@ export function structureShifts(shifts, month, year, employeeName) {
 }
 
 /**
- * פונקציית השוואה (נשארת ללא שינוי)
+ * פונקציית השוואה.
  */
 export function compareSchedules(googleSheetsShifts, hilanetShifts) {
     const differences = [];
@@ -234,4 +256,54 @@ export function parseHilanetXLSXForMaor(data) {
     });
 
     return shifts;
+}
+
+/**
+ * מטפל ביבוא של משמרות שנבחרו מההשוואה.
+ * @param {Array} currentDifferences - מערך הפערים הנוכחי המוצג למשתמש.
+ * @param {Object} allSchedules - אובייקט כלל הסידורים הקיים.
+ * @returns {{updatedSchedules: Object, importedCount: number, selectedCount: number}} - אובייקט עם הסידור המעודכן וספירת הפעולות.
+ */
+export function handleImportSelectedHilanetShifts(currentDifferences, allSchedules) {
+    const selectedIds = new Set(
+        Array.from(document.querySelectorAll('.difference-checkbox:checked'))
+        .map(cb => cb.dataset.diffId)
+    );
+
+    if (selectedIds.size === 0) {
+        return { updatedSchedules: allSchedules, importedCount: 0, selectedCount: 0 };
+    }
+
+    let importedCount = 0;
+    const newSchedules = JSON.parse(JSON.stringify(allSchedules));
+
+    currentDifferences
+        .filter(diff => selectedIds.has(diff.id))
+        .forEach(diff => {
+            const weekId = getWeekId(new Date(diff.date));
+            const dayName = new Date(diff.date).toLocaleDateString('he-IL', { weekday: 'long' });
+            const shiftType = diff.shiftType;
+
+            if (!newSchedules[weekId]) {
+                newSchedules[weekId] = {};
+            }
+            if (!newSchedules[weekId][dayName]) {
+                newSchedules[weekId][dayName] = {};
+            }
+
+            if (diff.type === 'added' || diff.type === 'changed') {
+                newSchedules[weekId][dayName][shiftType] = diff.hilanet;
+                importedCount++;
+            } else if (diff.type === 'removed') {
+                if (newSchedules[weekId][dayName] && newSchedules[weekId][dayName][shiftType]) {
+                    delete newSchedules[weekId][dayName][shiftType];
+                }
+            }
+    });
+
+    return { 
+        updatedSchedules: newSchedules, 
+        importedCount: importedCount, 
+        selectedCount: selectedIds.size 
+    };
 }
