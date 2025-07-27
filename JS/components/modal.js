@@ -1,6 +1,7 @@
 
 // יש להוסיף את המשתנה VACATION_EMPLOYEE_REPLACEMENT לייבוא מהקונפיגורציה
-import { DEFAULT_SHIFT_TIMES, EMPLOYEES, VACATION_EMPLOYEE_REPLACEMENT } from "../config.js";import { saveFullSchedule } from "../Api/googleApi.js";
+import { DEFAULT_SHIFT_TIMES, EMPLOYEES, VACATION_EMPLOYEE_REPLACEMENT } from "../config.js";
+import { saveFullSchedule } from "../Api/googleApi.js";
 import { updateStatus, DOMElements, allSchedules } from "../main.js";
 import { formatDate, getWeekId } from "../utils.js";
 import { renderSchedule } from "./schedule.js";
