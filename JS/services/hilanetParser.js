@@ -75,36 +75,78 @@ export function processHilanetData(rawText) {
 }
 
 /**
- * Calls the Gemini server function to extract shifts from an image, using context-specific prompts.
- * @param {string} imageData - Base64 image data.
- * @param {number} month - The relevant month.
- * @param {number} year - The relevant year.
- * @param {string} employeeName - The employee's name.
- * @param {'hilanet' | 'generic'} contextType - The type of analysis to perform.
- * @returns {Promise<Array<Object>>}
+ * @fileoverview
+ * This service handles interactions with the Gemini AI model
+ * for extracting work shift data from images. It supports multiple contexts:
+ * 1. 'hilanet-report': For structured, detailed PDF reports from Hilanet.
+ * 2. 'hilanet-calendar': For calendar-view hour summaries from Hilanet.
+ * 3. 'generic': For general work schedule images with multiple employees.
  */
 
-export async function callGeminiForShiftExtraction(imageData, month, year, employeeName, contextType = 'hilanet') {
-    // Prompt for Hilanet PDF reports (remains the same)
-    const hilanetPrompt = `
+// Storing prompt templates in a dedicated object improves code clarity and maintainability.
+const PROMPT_TEMPLATES = {
+    /**
+     * Generates the prompt for extracting data from a detailed Hilanet attendance report.
+     * @param {string} employeeName - The name of the employee.
+     * @param {string|number} month - The relevant month.
+     * @param {string|number} year - The relevant year.
+     * @returns {string} The formatted prompt for the AI model.
+     */
+    'hilanet-report': (employeeName, month, year) => `
         You are a world-class expert at extracting structured data from complex Hebrew work schedule reports from 'Hilanet'.
-        The provided image is a page from a work schedule for employee ${employeeName} for month ${month}/${year}.
-        Your task is to find the main table and extract daily work entries.
+        The provided image is a page from a detailed attendance report for employee ${employeeName} for month ${month}/${year}.
+        Your task is to find the main table and extract daily work entries based on entry and exit times.
 
         **CRITICAL INSTRUCTIONS - FOLLOW THESE RULES PRECISELY:**
-        1.  **Identify Correct Columns:** The key columns for shift times are labeled "כניסה" (entry) and "יציאה" (exit). Locate these specific columns.
-        2.  **IGNORE OTHER TIME COLUMNS:** The table contains other columns with hours like "שעות תקן" or "שעות רגיל". You MUST IGNORE these columns completely. Your focus is ONLY on the "כניסה" and "יציאה" columns.
-        3.  **Extract these fields for each valid work day row:**
-            * "day": The day of the month (a number).
+        1.  **Identify Key Columns:** The only columns that matter for shift times are labeled "כניסה" (entry) and "יציאה" (exit).
+        2.  **IGNORE ALL OTHER TIME COLUMNS:** The report contains other columns with hours like "שעות תקן", "שעות רגיל", or "סה"כ שעות". You MUST IGNORE these columns completely. Your focus is ONLY on the raw "כניסה" and "יציאה" columns.
+        3.  **Extract these fields for each row that represents a work day:**
+            * "day": The day of the month (a number, usually in the leftmost column).
             * "entryTime": The entry time from the "כניסה" column, in strict HH:MM format.
             * "exitTime": The exit time from the "יציאה" column, in strict HH:MM format.
-        4.  **Data Quality:** Ignore non-work days. Convert all times to HH:MM format.
+        4.  **Data Quality:**
+            * Ignore non-work days (like 'שבת', rows marked with 'חופש', or empty rows).
+            * If a day has entry/exit times, it is a valid work day.
+            * Convert all times to HH:MM format.
         5.  **Output Format:** Respond ONLY with a valid JSON array. If no shifts are found, return an empty array: [].
-    `;
+    `,
 
-    // --- ההנחיה המשופרת כאן ---
-    // Prompt for general schedule images, now extracts ALL employees
-    const genericImagePrompt = `
+    /**
+     * Generates the prompt for extracting data from a Hilanet calendar view.
+     * @param {string} employeeName - The name of the employee.
+     * @param {string|number} month - The relevant month.
+     * @param {string|number} year - The relevant year.
+     * @returns {string} The formatted prompt for the AI model.
+     */
+    'hilanet-calendar': (employeeName, month, year) => `
+        You are an expert at extracting data from Hebrew work-hour calendar summaries from 'Hilanet'.
+        The image provided is a calendar grid view for employee ${employeeName} for the month ${month}/${year}.
+        Your task is to extract the total hours worked for each day presented in the calendar.
+
+        **INSTRUCTIONS:**
+        1.  **Analyze the Grid:** The data is in a calendar grid. Each cell with a number in the corner is a day.
+        2.  **Extract Data:** For each day that has a time value inside its cell, extract the day number and the time value.
+        3.  **Fields to Extract:**
+            * "day": The day of the month (a number).
+            * "totalHours": The time value shown for that day (e.g., "9:00", "5:00").
+        4.  **Data Quality:** Ignore days with no time value listed. The time is the primary value inside the day's cell.
+        5.  **Output Format:** Respond ONLY with a valid JSON array of objects. If no data is found, return an empty array: [].
+
+        **Example Response:**
+        [
+          { "day": 2, "totalHours": "9:00" },
+          { "day": 4, "totalHours": "5:00" },
+          { "day": 6, "totalHours": "9:00" }
+        ]
+    `,
+
+    /**
+     * Generates the prompt for extracting data from a generic, multi-employee schedule image.
+     * @param {string|number} month - The relevant month.
+     * @param {string|number} year - The relevant year.
+     * @returns {string} The formatted prompt for the AI model.
+     */
+    'generic': (month, year) => `
         You are an expert at extracting structured data from images of work schedules in Hebrew.
         The image is a work schedule for the month of ${month}/${year}.
         Your task is to analyze the entire schedule and extract every shift for every employee.
@@ -119,46 +161,68 @@ export async function callGeminiForShiftExtraction(imageData, month, year, emplo
         IMPORTANT RULES:
         - The employee's name is critical. If you cannot identify the employee for a shift, do not include that shift.
         - The table structure may vary. Find employee names within the cells for morning (בוקר) and evening (ערב) shifts.
-        - Default shift times are morning: 07:00-16:00, evening: 13:00-22:00. If times are not written, use these defaults.
+        - Default shift times are morning: 07:00-16:00, evening: 13:00-22:00. If times are not explicitly written, use these defaults.
         - Respond ONLY with a valid JSON array. If the image is unreadable or contains no shifts, return an empty array: [].
+    `
+};
 
-        Example Response:
-        [
-          { "day": 1, "shiftType": "morning", "employee": "מאור", "start": "07:00", "end": "16:00" },
-          { "day": 1, "shiftType": "evening", "employee": "מור", "start": "13:00", "end": "22:00" },
-          { "day": 2, "shiftType": "morning", "employee": "מאור", "start": "08:00", "end": "16:30" }
-        ]
-    `;
-    
-    const prompt = contextType === 'generic' ? genericImagePrompt : hilanetPrompt;
+/**
+ * Calls a serverless function to interact with the Gemini AI for shift extraction from an image.
+ * @param {string} imageData - The base64 encoded image data.
+ * @param {string|number} month - The month of the schedule.
+ * @param {string|number} year - The year of the schedule.
+ * @param {string} employeeName - The name of the employee.
+ * @param {('hilanet-report'|'hilanet-calendar'|'generic')} [contextType='hilanet-report'] - The type of document being processed.
+ * @returns {Promise<Array<Object>>} A promise that resolves to an array of shift objects.
+ * @throws {Error} If the AI call fails or the response is invalid.
+ */
+export async function callGeminiForShiftExtraction(imageData, month, year, employeeName, contextType = 'hilanet-report') {
+    // Select the correct prompt template based on the context.
+    const promptGenerator = PROMPT_TEMPLATES[contextType] || PROMPT_TEMPLATES['hilanet-report'];
+    const prompt = promptGenerator(employeeName, month, year);
 
     try {
+        // Call the serverless function which acts as a proxy to the Gemini API.
         const response = await fetch('/.netlify/functions/callGemini', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ imageData, prompt })
         });
 
+        // Handle non-successful HTTP responses.
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ error: `Server responded with status: ${response.status}` }));
+            const errorData = await response.json().catch(() => ({ 
+                error: `Server responded with status: ${response.status}` 
+            }));
             throw new Error(errorData.error || 'Failed to communicate with the server.');
         }
 
         const result = await response.json();
-        const textResponse = result.candidates[0].content.parts[0].text;
+        
+        // Safely access the text response from the Gemini API result.
+        const textResponse = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!textResponse) {
+            console.error("Invalid response structure from Gemini:", result);
+            return [];
+        }
+        
+        // The AI might sometimes include extra text. We use a regex to reliably extract the JSON array string.
         const jsonMatch = textResponse.match(/\[.*\]/s);
-
         if (!jsonMatch) {
             console.error("Gemini did not return a valid JSON array. Response:", textResponse);
             return [];
         }
 
+        // Parse the extracted string into a JavaScript array.
         return JSON.parse(jsonMatch[0]);
+
     } catch (error) {
-        console.error("Error calling Gemini for shift extraction:", error);
-        throw new Error("Failed to extract shifts using AI. " + error.message);
+        console.error(`Error calling Gemini for context '${contextType}':`, error);
+        // Re-throw a more user-friendly error to be caught by the calling function.
+        throw new Error(`Failed to extract shifts using AI. ${error.message}`);
     }
 }
+
 
 
 /**
