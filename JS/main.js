@@ -1,5 +1,3 @@
-// קובץ: JS/main.js
-
 import { fetchData, handleCreateCalendarEvents, handleDeleteCalendarEvents, initializeGapiClient, saveFullSchedule } from './Api/googleApi.js';
 import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts } from './components/charts.js';
 import { closeDifferencesModal, closeModal, closeVacationModal, displayDifferences, handleModalSave, showEmployeeSelectionModal, showVacationModal } from './components/modal.js';
@@ -771,8 +769,6 @@ function initializeAppLogic() {
     loadGoogleApiScripts();
 }
 
-document.addEventListener('DOMContentLoaded', initializeAppLogic);
-
 /**
  * Handles the image upload process. Reads the file and passes its data to the modal function.
  * @param {Event} event - The file input change event.
@@ -803,12 +799,8 @@ async function handleUploadImage(event) {
             return;
         }
 
-        // **התיקון**: שמירת המידע ישירות על אלמנט ה-DOM של המודאל
-        // זה מבטיח שהמידע לא יאבד לפני הלחיצה על כפתור האישור.
-        DOMElements.imageMetadataModal.dataset.imageData = imageDataBase64;
-        
-        // הצגת המודאל רק לאחר שהקובץ נקרא בהצלחה
-        showImageMetadataModal();
+        // *** FIX: Pass the image data directly to the modal function ***
+        showImageMetadataModal(imageDataBase64);
     };
     reader.onerror = (error) => {
         displayAPIError(error, 'שגיאה בקריאת קובץ התמונה.');
@@ -819,10 +811,10 @@ async function handleUploadImage(event) {
 }
 
 /**
- * Shows a modal to get required metadata. It now accepts the image data as a parameter.
- * @param {string} imageDataBase64 - The base64 encoded image data, passed via closure to the confirm handler.
+ * Shows a modal to get required metadata.
+ * @param {string} imageDataBase64 - The base64 encoded image data, passed from handleUploadImage.
  */
-function showImageMetadataModal() {
+function showImageMetadataModal(imageDataBase64) { // <-- FIX: Accept image data as a parameter
     const modal = DOMElements.imageMetadataModal;
     const monthSelect = DOMElements.imageMonthSelect;
     const yearSelect = DOMElements.imageYearSelect;
@@ -851,30 +843,23 @@ function showImageMetadataModal() {
     monthSelect.value = new Date().getMonth() + 1;
     yearSelect.value = currentYear;
 
-    // עדכון הסטטוס כדי להנחות את המשתמש
     updateStatus('אנא בחר חודש, שנה, ואשר כדי להמשיך.', 'info');
     modal.classList.remove('hidden');
 
     const cleanup = () => {
         modal.classList.add('hidden');
-        // **חשוב**: ניקוי המידע מה-DOM לאחר השימוש
-        if (modal.dataset.imageData) {
-            delete modal.dataset.imageData;
-        }
         setProcessingStatus(false);
     };
 
     const confirmHandler = async () => {
-        // **התיקון**: קריאת המידע ישירות מה-DOM ברגע הלחיצה
-        const imageDataBase64 = modal.dataset.imageData;
-
+        // FIX: The imageDataBase64 is now available directly from the parent function's scope (closure).
+        // No need to read from a data attribute.
         if (!imageDataBase64 || imageDataBase64.length < 100) {
             displayAPIError(null, "שגיאה: נתוני התמונה לא נמצאו בעת הניתוח.");
             cleanup();
             return;
         }
         
-        // הסתרת המודאל מיד כדי שהמשתמש יראה את סטטוס העיבוד
         modal.classList.add('hidden');
         updateStatus(`שולח תמונה לניתוח Gemini...`, 'loading', true);
 
