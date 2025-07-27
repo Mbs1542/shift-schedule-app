@@ -22,13 +22,13 @@ exports.handler = async function(event) {
              return { statusCode: 400, body: JSON.stringify({ error: "Missing imageDataBase64 or prompt in request." }) };
         }
 
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
         const payload = {
             contents: [{
                 parts: [
                     { text: prompt },
-                    { inline_data: { mime_type: "image/png", data: imageDataBase64.split(',')[1] } }
+                    { inline_data: { mime_type: "image/jpeg", data: imageDataBase64.split(',')[1] } }
                 ]
             }],
             generationConfig: {

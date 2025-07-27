@@ -395,28 +395,32 @@ async function handleUploadHilanet(event) {
                 const { employeeName, detectedMonth, detectedYear } = hilanetParser.processHilanetData(rawText);
 
                 // שלב 2: עיבוד כל עמוד כתמונה ושליחה ל-Gemini
-                const allShifts = [];
+                updateStatus(`מכין ${pdf.numPages} עמודים לעיבוד...`, 'loading', true);
+
+                const pagePromises = [];
                 for (let i = 1; i <= pdf.numPages; i++) {
-                    updateStatus(`מעבד עמוד ${i} מתוך ${pdf.numPages}...`, 'loading', true);
-                    const page = await pdf.getPage(i);
+                    pagePromises.push(pdf.getPage(i));
+                }
+                const pages = await Promise.all(pagePromises);
+
+                const extractionPromises = pages.map(async (page, index) => {
+                    updateStatus(`שולח עמוד ${index + 1} מתוך ${pdf.numPages} לניתוח...`, 'loading', true);
                     
-                    const scale = 1.5;
+                    const scale = 1.5; // ניתן לשקול להקטין ל-1.2 או 1.0 לשיפור ביצועים
                     const viewport = page.getViewport({ scale });
                     const canvas = document.createElement('canvas');
                     const context = canvas.getContext('2d');
                     canvas.height = viewport.height;
                     canvas.width = viewport.width;
 
-                    await page.render({ canvasContext: context, viewport: viewport }).promise;
-                    
+                    await page.render({ canvasContext: context, viewport: viewport }).promise;                    
                     const imageDataBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                    
+                    return hilanetParser.callGeminiForShiftExtraction(imageDataBase64, detectedMonth, detectedYear, employeeName);
+                });
 
-                    const shiftsFromPage = await hilanetParser.callGeminiForShiftExtraction(imageDataBase64, detectedMonth, detectedYear, employeeName);
-                    if (shiftsFromPage && shiftsFromPage.length > 0) {
-                        allShifts.push(...shiftsFromPage);
-                    }
-                }
-
+                const results = await Promise.all(extractionPromises);
+                const allShifts = results.flat();
                 // שלב 3: המשך התהליך עם המשמרות שחולצו
                 if (allShifts.length === 0) {
                     updateStatus('לא נמצאו משמרות לניתוח בקובץ ה-PDF.', 'info');
