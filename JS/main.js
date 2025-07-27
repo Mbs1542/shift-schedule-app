@@ -415,84 +415,72 @@ async function handleUploadHilanet(event) {
 
 // ... (rest of your main.js code)
 
-// Alternative approach: Process PDF as images for better table extraction
-async function processPdfFileAsImages(file) {
-    updateStatus('מעבד קובץ PDF...', 'loading', true);
-    try {
-        const fileReader = new FileReader();
-        const arrayBuffer = await new Promise((resolve, reject) => {
-            fileReader.onload = e => resolve(e.target.result);
-            fileReader.onerror = reject;
-            fileReader.readAsArrayBuffer(file);
-        });
+/**
+ * Processes the PDF file by converting each page to an image and extracting shifts.
+ */
+async function processPdfFileAsImages(file, month, year, employeeName) {
+    const fileReader = new FileReader();
+    fileReader.readAsArrayBuffer(file);
 
-        const typedArray = new Uint8Array(arrayBuffer);
-        const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
-        
-        // First, extract text from PDF to get employee info and dates
-        let fullText = '';
-        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-            const page = await pdf.getPage(pageNum);
-            const textContent = await page.getTextContent();
-            const pageText = textContent.items.map(item => item.str).join(' ');
-            fullText += pageText + '\n';
-        }
-        
-        console.log('Extracted PDF text for metadata:', fullText.substring(0, 500));
-        
-        // Extract employee info and dates from text
-        const { employeeName, detectedMonth, detectedYear } = processHilanetData(fullText);
-        
-        // Now process pages as images for table extraction
-        const allShifts = {};
-        
-        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-            updateStatus(`מעבד עמוד ${pageNum} מתוך ${pdf.numPages}...`, 'loading', true);
-            
-            const page = await pdf.getPage(pageNum);
-            const imageDataUrl = await getPageImage(page);
-            
+    return new Promise((resolve, reject) => {
+        fileReader.onload = async (event) => {
             try {
-                const shiftsFromPage = await callGeminiForShiftExtraction(
-                    imageDataUrl, 
-                    detectedMonth, 
-                    detectedYear, 
-                    employeeName
-                );
-                
-                if (shiftsFromPage && Array.isArray(shiftsFromPage)) {
-                    const structuredShifts = structureShifts(
-                        shiftsFromPage, 
-                        detectedMonth, 
-                        detectedYear, 
-                        employeeName
-                    );
+                const pdfData = new Uint8Array(event.target.result);
+                const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+                const allShifts = [];
+
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    updateStatus(`מעבד עמוד ${i} מתוך ${pdf.numPages}...`, 'loading', true);
+                    const page = await pdf.getPage(i);
                     
-                    // Merge shifts from this page
-                    Object.assign(allShifts, structuredShifts);
+                    // --- התחלה: הקוד החדש והאופטימלי ---
+                    const scale = 1.5; // הורדנו את הסקאלה מ-2.0 ל-1.5 כדי להקטין את הרזולוציה
+                    const viewport = page.getViewport({ scale: scale });
+                    
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+
+                    await page.render({ canvasContext: context, viewport: viewport }).promise;
+                    
+                    // המרה ל-JPEG באיכות נמוכה יותר כדי להקטין דרמטית את גודל התמונה
+                    const imageDataBase64 = canvas.toDataURL('image/jpeg', 0.7); 
+                    // --- סוף: הקוד החדש והאופטימלי ---
+
+                    try {
+                        const shiftsFromPage = await processHilanetData.callGeminiForShiftExtraction(imageDataBase64, month, year, employeeName);
+                        if (shiftsFromPage && shiftsFromPage.length > 0) {
+                            allShifts.push(...shiftsFromPage);
+                        }
+                    } catch (error) {
+                        console.error(`Error processing page ${i}:`, error);
+                        // שגיאה זו נתפסת כעת בצורה נקייה יותר בבלוק ה-catch החיצוני
+                        throw new Error(error.message || `Failed to process page ${i}.`);
+                    }
                 }
-            } catch (pageError) {
-                console.warn(`Error processing page ${pageNum}:`, pageError);
-                // Continue with other pages
+                
+                if (allShifts.length === 0) {
+                    updateStatus('לא נמצאו משמרות לניתוח בקובץ ה-PDF.', 'info', false);
+                    resolve(null);
+                } else {
+                    const structuredShifts = processHilanetData.structureShifts(allShifts, month, year, employeeName);
+                    resolve(structuredShifts);
+                }
+
+            } catch (error) {
+                console.error("Error in processPdfFileAsImages:", error);
+                updateStatus('שגיאה בעיבוד קובץ ה-PDF.', 'error', false);
+                reject(error);
             }
-        }
-        
-        currentHilanetShifts = allShifts;
-        
-        if (Object.keys(currentHilanetShifts).length > 0) {
-            updateStatus('משווה סידורים...', 'loading', true);
-            const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
-            currentDifferences = compareSchedules(allGoogleSheetsShiftsForMaor, currentHilanetShifts);
-            displayDifferences(currentDifferences);
-            updateStatus('השוואת הסידורים הושלמה!', 'success');
-        } else {
-            updateStatus('לא נמצאו משמרות לניתוח בקובץ ה-PDF.', 'info');
-        }
-        
-    } catch (error) {
-        console.error('Error processing PDF:', error);
-        displayAPIError(error, 'שגיאה בעיבוד קובץ ה-PDF');
-    }
+        };
+
+        fileReader.onerror = (error) => {
+            console.error("FileReader error:", error);
+            updateStatus('שגיאה בקריאת הקובץ.', 'error', false);
+            reject(error);
+        };
+    });
 }
 
 // Helper function to render a PDF page to a canvas and get a data URL
