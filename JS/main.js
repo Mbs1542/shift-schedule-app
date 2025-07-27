@@ -226,10 +226,49 @@ async function handleGeminiSuggestShift() {
     const weekId = getWeekId(DOMElements.datePicker.value);
     const day = DOMElements.shiftModal.dataset.day;
     const shiftType = DOMElements.shiftModal.dataset.shift;
-    const currentEmployee = allSchedules[weekId]?.[day]?.[shiftType]?.employee || 'none';
-    const otherShiftEmployee = DOMElements.shiftModal.dataset.otherShiftEmployee;
+    const otherShiftEmployee = DOMElements.shiftModal.dataset.otherShiftEmployee || 'none';
 
-    const context = `אני מנהל סידור עבודה. העובדים הזמינים הם: ${EMPLOYEES.join(', ')}. המשמרת הנוכחית היא: יום ${day}, משמרת ${shiftType === 'morning' ? 'בוקר' : 'ערב'}. העובד המשובץ כרגע למשמרת זו הוא: ${currentEmployee === 'none' ? 'אף אחד' : currentEmployee}. העובד המשובץ למשמרת השנייה באותו יום הוא: ${otherShiftEmployee === 'none' ? 'אף אחד' : otherShiftEmployee}. אסור לשבץ את אותו עובד לשתי משמרות באותו יום. הצע לי עובד אחד מתאים למשמרת זו. השב רק עם שם העובד המוצע, ללא הסברים. אם אין עובד מתאים, השב "אף אחד".`;
+    // **שיפור**: מתן הקשר וחוקים מפורטים ל-Gemini
+    
+    // 1. קבלת רשימת עובדים זמינים (ללא טכנאי מחליף)
+    const availableEmployees = EMPLOYEES.filter(e => e !== VACATION_EMPLOYEE_REPLACEMENT);
+
+    // 2. הכנת מידע על הסידור השבועי הנוכחי
+    const scheduleDataForWeek = allSchedules[weekId] || {};
+    let scheduleContext = "מצב נוכחי בסידור השבוע:\n";
+    DAYS.forEach(dayName => {
+        if (dayName === 'שבת') return; // דילוג על שבת
+        const dayData = scheduleDataForWeek[dayName] || {};
+        const morningShift = dayData.morning?.employee && dayData.morning.employee !== 'none' ? dayData.morning.employee : 'פנוי';
+        let eveningShift = 'פנוי';
+        if (dayName !== 'שישי') {
+            eveningShift = dayData.evening?.employee && dayData.evening.employee !== 'none' ? dayData.evening.employee : 'פנוי';
+        }
+        scheduleContext += `- יום ${dayName}: בוקר - ${morningShift}, ערב - ${eveningShift}\n`;
+    });
+
+    // 3. בניית ההנחיה המפורטת עם החוקים החדשים
+    const context = `
+אתה מומחה לשיבוץ עובדים במשמרות. משימתך היא להציע עובד אחד מתאים למשמרת ספציפית, בהתבסס על מערכת חוקים מורכבת.
+
+המשמרת שיש לשבץ:
+- יום: ${day}
+- משמרת: ${shiftType === 'morning' ? 'בוקר' : 'ערב'}
+
+העובדים הזמינים לשיבוץ (לא כולל 'טכנאי מרכז'):
+${availableEmployees.join(', ')}
+
+${scheduleContext}
+
+עליך לפעול לפי החוקים הבאים בקפדנות:
+1.  **איסור משמרת כפולה:** לעובד אסור לעבוד שתי משמרות באותו היום. העובד במשמרת השנייה ביום ${day} הוא: ${otherShiftEmployee === 'none' ? 'אף אחד' : otherShiftEmployee}.
+2.  **חוק חמישי-שישי:** עובד שעובד ביום שישי בבוקר, לא יכול לעבוד ביום חמישי בערב שלפניו.
+3.  **מגבלות על עובד משמרת שישי:** אם אתה משבץ למשמרת **בוקר ביום שישי**, העובד שתבחר לא יכול לעבוד יותר מ-4 משמרות בוקר ו-2 משמרות ערב בסך הכל באותו שבוע (כולל משמרת זו).
+4.  **מגבלות על עובד משמרת חמישי ערב:** אם אתה משבץ למשמרת **ערב ביום חמישי**, העובד שתבחר לא יכול לעבוד ביום שישי כלל. בנוסף, הוא לא יכול לעבוד יותר מ-3 משמרות ערב ו-2 משמרות בוקר בסך הכל באותו שבוע (כולל משמרת זו).
+
+בהתחשב בכל הנתונים והחוקים, מיהו העובד המתאים ביותר למשמרת?
+השב **רק עם שם העובד**. אם אף עובד אינו עומד בכל החוקים, השב "אף אחד".
+`;
 
     updateStatus('מבקש הצעת שיבוץ מ-Gemini...', 'loading', true);
 
@@ -246,18 +285,21 @@ async function handleGeminiSuggestShift() {
         }
 
         const result = await response.json();
-        const suggestedEmployee = result.suggestion;
+        const suggestedEmployee = result.suggestion.trim();
 
         const suggestedBtn = DOMElements.modalOptions.querySelector(`button[data-employee="${suggestedEmployee}"]`);
+        
         if (suggestedBtn && !suggestedBtn.disabled) {
             suggestedBtn.click();
             updateStatus(`Gemini הציע: ${suggestedEmployee}`, 'success', false);
-        } else if (suggestedEmployee === 'אף אחד') {
+        } else if (suggestedEmployee === 'אף אחד' || !suggestedBtn) {
             const noOneBtn = DOMElements.modalOptions.querySelector(`button[data-employee="none"]`);
             if (noOneBtn) noOneBtn.click();
-            updateStatus('Gemini לא מצא שיבוץ מתאים.', 'info', false);
+            updateStatus('Gemini לא מצא שיבוץ מתאים על פי החוקים.', 'info', false);
+        } else if (suggestedBtn && suggestedBtn.disabled) {
+            updateStatus(`Gemini הציע: ${suggestedEmployee}, אך הוא אינו זמין למשמרת זו.`, 'info', false);
         } else {
-            updateStatus(`Gemini הציע: ${suggestedEmployee}, אך הוא אינו זמין או קיים.`, 'info', false);
+            updateStatus(`הצעה לא תקינה: ${suggestedEmployee}.`, 'error', false);
         }
     } catch (error) {
         console.error('Error fetching shift suggestion:', error);
