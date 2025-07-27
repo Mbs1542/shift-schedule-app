@@ -149,6 +149,7 @@ export async function callGeminiForShiftExtraction(imageDataBase64, month, year,
 }
 
 
+
 /**
  * מארגן את המשמרות שחולצו למבנה נתונים תקין.
  */
@@ -157,10 +158,15 @@ export function structureShifts(shifts, month, year, employeeName) {
     if (!Array.isArray(shifts)) return structured;
 
     shifts.forEach(shift => {
-        if (!shift.day || !shift.startTime || !shift.endTime) return; // דלג על ימים ללא נתונים מלאים
+        // תיקון: שימוש ב-entryTime ו-exitTime במקום startTime ו-endTime
+        // וגם בדיקה שהשעות אינן ריקות
+        if (!shift.day || !shift.entryTime || !shift.exitTime) {
+            return; // דלג על ימים ללא נתוני שעות מלאים
+        }
 
         const dateString = `${year}-${String(month).padStart(2, '0')}-${String(shift.day).padStart(2, '0')}`;
-        const shiftType = parseInt(shift.startTime.split(':')[0], 10) < 12 ? 'morning' : 'evening';
+        // תיקון: שימוש ב-entryTime לחישוב סוג המשמרת
+        const shiftType = parseInt(shift.entryTime.split(':')[0], 10) < 12 ? 'morning' : 'evening';
         
         if (!structured[dateString]) {
             structured[dateString] = {};
@@ -168,8 +174,9 @@ export function structureShifts(shifts, month, year, employeeName) {
         
         structured[dateString][shiftType] = {
             employee: employeeName,
-            start: shift.startTime.length === 5 ? `${shift.startTime}:00` : shift.startTime,
-            end: shift.endTime.length === 5 ? `${shift.endTime}:00` : shift.endTime,
+            // תיקון: שימוש ב-entryTime ו-exitTime והוספת שניות
+            start: `${shift.entryTime}:00`,
+            end: `${shift.exitTime}:00`,
         };
     });
     return structured;
