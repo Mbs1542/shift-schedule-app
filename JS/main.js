@@ -414,11 +414,6 @@ async function handleVacationShift(vacationingEmployee, startDateString, endDate
         updateStatus(`לא נמצאו משמרות עבור ${vacationingEmployee} בטווח התאריכים הנבחר.`, 'info', false);
     }
 }
-
-// קובץ: JS/main.js
-
-// ... (קוד קודם)
-
 async function handleUploadHilanet(event) {
     if (isProcessing) {
         updateStatus('תהליך אחר כבר רץ, אנא המתן.', 'info');
@@ -459,9 +454,9 @@ async function handleUploadHilanet(event) {
                 const pages = await Promise.all(pagePromises);
 
                 const extractionPromises = pages.map(async (page, index) => {
-                    updateStatus(`שולח עמוד ${index + 1} מתוך ${pdf.numPages} לניתוח...`, 'loading', true);
+                    updateStatus(`שולח עמוד ${index + 1} מתוך ${pdf.numPages} לניתוח...`, 'loading', true); 
                     
-                    const scale = 1.5; // ניתן לשקול להקטין ל-1.2 או 1.0 לשיפור ביצועים
+                    const scale = 2.0; 
                     const viewport = page.getViewport({ scale });
                     const canvas = document.createElement('canvas');
                     const context = canvas.getContext('2d');
@@ -469,14 +464,12 @@ async function handleUploadHilanet(event) {
                     canvas.width = viewport.width;
 
                     await page.render({ canvasContext: context, viewport: viewport }).promise;                    
-                    const imageDataBase64 = canvas.toDataURL('image/jpeg', 0.7);
-                    
-                    return hilanetParser.callGeminiForShiftExtraction(imageDataBase64, detectedMonth, detectedYear, employeeName);
+                    const imageDataBase64 = canvas.toDataURL('image/png'); // Using PNG as per previous fix
+                    return hilanetParser.callGeminiForShiftExtraction(imageDataBase64, detectedMonth, detectedYear, employeeName, 'hilanet');
                 });
 
                 const results = await Promise.all(extractionPromises);
                 const allShifts = results.flat();
-                // שלב 3: המשך התהליך עם המשמרות שחולצו
                 if (allShifts.length === 0) {
                     updateStatus('לא נמצאו משמרות לניתוח בקובץ ה-PDF.', 'info');
                     return; // אין צורך להמשיך
@@ -868,7 +861,7 @@ function showImageMetadataModal(imageDataBase64) { // <-- FIX: Accept image data
         const detectedYear = DOMElements.imageYearSelect.value;
 
         try {
-            const extractedShifts = await hilanetParser.callGeminiForShiftExtraction(imageDataBase64, detectedMonth, detectedYear, employeeName);
+            const extractedShifts = await hilanetParser.callGeminiForShiftExtraction(imageDataBase64, detectedMonth, detectedYear, employeeName, 'generic');
             
             if (!extractedShifts || extractedShifts.length === 0) {
                 updateStatus('לא נמצאו משמרות בתמונה.', 'info');
