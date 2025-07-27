@@ -843,47 +843,55 @@ function showImageMetadataModal(imageDataBase64) { // <-- FIX: Accept image data
         modal.classList.add('hidden');
         setProcessingStatus(false);
     };
+const confirmHandler = async () => {
+    if (!imageDataBase64 || imageDataBase64.length < 100) {
+        displayAPIError(null, "שגיאה: נתוני התמונה לא נמצאו בעת הניתוח.");
+        cleanup();
+        return;
+    }
+    
+    modal.classList.add('hidden');
+    updateStatus(`שולח תמונה לניתוח Gemini...`, 'loading', true);
 
-    const confirmHandler = async () => {
-        // FIX: The imageDataBase64 is now available directly from the parent function's scope (closure).
-        // No need to read from a data attribute.
-        if (!imageDataBase64 || imageDataBase64.length < 100) {
-            displayAPIError(null, "שגיאה: נתוני התמונה לא נמצאו בעת הניתוח.");
-            cleanup();
+    const employeeToCompare = DOMElements.imageEmployeeSelect.value;
+    const detectedMonth = DOMElements.imageMonthSelect.value;
+    const detectedYear = DOMElements.imageYearSelect.value;
+
+    try {
+        // Gemini now extracts all shifts from the image
+        const allExtractedShifts = await hilanetParser.callGeminiForShiftExtraction(imageDataBase64, detectedMonth, detectedYear, employeeToCompare, 'generic');
+        
+        // --- התיקון המרכזי כאן: סינון המשמרות הרלוונטיות ---
+        const shiftsForSelectedEmployee = allExtractedShifts.filter(shift => shift.employee === employeeToCompare);
+
+        if (!shiftsForSelectedEmployee || shiftsForSelectedEmployee.length === 0) {
+            updateStatus(`לא נמצאו משמרות עבור ${employeeToCompare} בתמונה.`, 'info');
             return;
         }
+
+        // The structureShifts function needs to be adapted for the new generic format
+        // We will simulate the old format it expects
+        const formattedShiftsForParser = shiftsForSelectedEmployee.map(shift => ({
+            day: shift.day,
+            entryTime: shift.start,
+            exitTime: shift.end
+        }));
+
+        currentHilanetShifts = hilanetParser.structureShifts(formattedShiftsForParser, detectedMonth, detectedYear, employeeToCompare);
         
-        modal.classList.add('hidden');
-        updateStatus(`שולח תמונה לניתוח Gemini...`, 'loading', true);
+        updateStatus('משווה סידורים...', 'loading', true);
+        const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
+        currentDifferences = hilanetParser.compareSchedules(allGoogleSheetsShiftsForMaor, currentHilanetShifts);
+        
+        displayDifferences(currentDifferences);
+        updateStatus('השוואת הסידורים הושלמה!', 'success');
 
-        const employeeName = DOMElements.imageEmployeeSelect.value;
-        const detectedMonth = DOMElements.imageMonthSelect.value;
-        const detectedYear = DOMElements.imageYearSelect.value;
-
-        try {
-            const extractedShifts = await hilanetParser.callGeminiForShiftExtraction(imageDataBase64, detectedMonth, detectedYear, employeeName, 'generic');
-            
-            if (!extractedShifts || extractedShifts.length === 0) {
-                updateStatus('לא נמצאו משמרות בתמונה.', 'info');
-                return; // The finally block will call cleanup
-            }
-
-            currentHilanetShifts = hilanetParser.structureShifts(extractedShifts, detectedMonth, detectedYear, employeeName);
-            
-            updateStatus('משווה סידורים...', 'loading', true);
-            const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
-            currentDifferences = hilanetParser.compareSchedules(allGoogleSheetsShiftsForMaor, currentHilanetShifts);
-            
-            displayDifferences(currentDifferences);
-            updateStatus('השוואת הסידורים הושלמה!', 'success');
-
-        } catch (error) {
-            displayAPIError(error, 'אירעה שגיאה בעיבוד התמונה.');
-        } finally {
-            cleanup();
-        }
-    };
-
+    } catch (error) {
+        displayAPIError(error, 'אירעה שגיאה בעיבוד התמונה.');
+    } finally {
+        cleanup();
+    }
+};
     const cancelHandler = () => {
         cleanup();
         updateStatus('העלאת התמונה בוטלה.', 'info');

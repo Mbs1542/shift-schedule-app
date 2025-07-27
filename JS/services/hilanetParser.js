@@ -83,9 +83,9 @@ export function processHilanetData(rawText) {
  * @param {'hilanet' | 'generic'} contextType - The type of analysis to perform.
  * @returns {Promise<Array<Object>>}
  */
+
 export async function callGeminiForShiftExtraction(imageData, month, year, employeeName, contextType = 'hilanet') {
-    
-    // Prompt for specific, complex Hilanet PDF reports
+    // Prompt for Hilanet PDF reports (remains the same)
     const hilanetPrompt = `
         You are a world-class expert at extracting structured data from complex Hebrew work schedule reports from 'Hilanet'.
         The provided image is a page from a work schedule for employee ${employeeName} for month ${month}/${year}.
@@ -95,30 +95,41 @@ export async function callGeminiForShiftExtraction(imageData, month, year, emplo
         1.  **Identify Correct Columns:** The key columns for shift times are labeled "כניסה" (entry) and "יציאה" (exit). Locate these specific columns.
         2.  **IGNORE OTHER TIME COLUMNS:** The table contains other columns with hours like "שעות תקן" or "שעות רגיל". You MUST IGNORE these columns completely. Your focus is ONLY on the "כניסה" and "יציאה" columns.
         3.  **Extract these fields for each valid work day row:**
-            * "day": The day of the month (a number, usually in the rightmost column).
+            * "day": The day of the month (a number).
             * "entryTime": The entry time from the "כניסה" column, in strict HH:MM format.
             * "exitTime": The exit time from the "יציאה" column, in strict HH:MM format.
-        4.  **Data Quality and Formatting:** Ignore non-work days (like 'שבת'). Convert all times to HH:MM format. If a time is missing, return null.
+        4.  **Data Quality:** Ignore non-work days. Convert all times to HH:MM format.
         5.  **Output Format:** Respond ONLY with a valid JSON array. If no shifts are found, return an empty array: [].
     `;
 
-    // Prompt for general schedule images (screenshots, photos, etc.)
+    // --- ההנחיה המשופרת כאן ---
+    // Prompt for general schedule images, now extracts ALL employees
     const genericImagePrompt = `
         You are an expert at extracting structured data from images of work schedules in Hebrew.
-        The provided image is a work schedule for employee ${employeeName} for the month of ${month}/${year}.
-        Your task is to find the main table containing daily entries. For each row that represents a work day, extract the following:
-        1. "day": The day of the month as a number (e.g., 1, 2, 15).
-        2. "entryTime": The entry time (כניסה) in HH:MM format.
-        3. "exitTime": The exit time (יציאה) in HH:MM format.
+        The image is a work schedule for the month of ${month}/${year}.
+        Your task is to analyze the entire schedule and extract every shift for every employee.
         
-        IMPORTANT:
-        - The table structure may vary. Do your best to identify the logical entry and exit times for each day.
-        - Ignore rows that are not work days (like 'שבת' or empty days).
-        - Ensure the time format is always HH:MM. For example, '7:00' should be '07:00'. If a time is missing, return null.
-        - Respond ONLY with a valid JSON array. If no shifts are found, return an empty array: [].
+        For each shift found in the schedule, create a JSON object with the following fields:
+        1. "day": The day of the month (number).
+        2. "shiftType": The type of shift, either "morning" or "evening".
+        3. "employee": The name of the employee assigned to the shift.
+        4. "start": The start time in HH:MM format.
+        5. "end": The end time in HH:MM format.
+        
+        IMPORTANT RULES:
+        - The employee's name is critical. If you cannot identify the employee for a shift, do not include that shift.
+        - The table structure may vary. Find employee names within the cells for morning (בוקר) and evening (ערב) shifts.
+        - Default shift times are morning: 07:00-16:00, evening: 13:00-22:00. If times are not written, use these defaults.
+        - Respond ONLY with a valid JSON array. If the image is unreadable or contains no shifts, return an empty array: [].
+
+        Example Response:
+        [
+          { "day": 1, "shiftType": "morning", "employee": "מאור", "start": "07:00", "end": "16:00" },
+          { "day": 1, "shiftType": "evening", "employee": "מור", "start": "13:00", "end": "22:00" },
+          { "day": 2, "shiftType": "morning", "employee": "מאור", "start": "08:00", "end": "16:30" }
+        ]
     `;
     
-    // Choose the prompt based on the context
     const prompt = contextType === 'generic' ? genericImagePrompt : hilanetPrompt;
 
     try {
@@ -182,7 +193,7 @@ export function structureShifts(shifts, month, year, employeeName) {
 }
 
 /**
- * Compares the Google Sheets schedule with the Hilanet schedule.
+ * Compares the Google Sheets schedule with the Hilanet schedule with improved time normalization.
  */
 export function compareSchedules(googleSheetsShifts, hilanetShifts) {
     const differences = [];
@@ -202,8 +213,16 @@ export function compareSchedules(googleSheetsShifts, hilanetShifts) {
                 differences.push({ id, type: 'removed', date, dayName, shiftType, googleSheets: gsShift });
             } else if (!gsShift && hlShift) {
                 differences.push({ id, type: 'added', date, dayName, shiftType, hilanet: hlShift });
-            } else if (gsShift && hlShift && (gsShift.start !== hlShift.start || gsShift.end !== hlShift.end)) {
-                differences.push({ id, type: 'changed', date, dayName, shiftType, googleSheets: gsShift, hilanet: hlShift });
+            } else if (gsShift && hlShift) {
+                // --- התיקון המרכזי כאן: השוואה לפי שעות ודקות בלבד ---
+                const gsStart = gsShift.start.substring(0, 5);
+                const hlStart = hlShift.start.substring(0, 5);
+                const gsEnd = gsShift.end.substring(0, 5);
+                const hlEnd = hlShift.end.substring(0, 5);
+
+                if (gsStart !== hlStart || gsEnd !== hlEnd) {
+                    differences.push({ id, type: 'changed', date, dayName, shiftType, googleSheets: gsShift, hilanet: hlShift });
+                }
             }
         });
     });
