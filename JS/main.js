@@ -46,17 +46,23 @@ function setProcessingStatus(processing) {
  * @param {boolean} [showSpinner=false] - Whether to show a loading spinner.
  */
 export function updateStatus(text, type, showSpinner = false) {
-    if (DOMElements.statusIndicator) {
-        const colors = {
-            info: 'text-slate-500',
-            success: 'text-green-600',
-            error: 'text-red-600',
-            loading: 'text-blue-600'
-        };
-        let spinnerHtml = showSpinner ? '<span class="spinner"></span>' : '';
-        DOMElements.statusIndicator.innerHTML = `${spinnerHtml}<span>${text}</span>`;
-        DOMElements.statusIndicator.className = `flex items-center gap-2 text-sm p-2 rounded-md ${colors[type] || colors.info}`;
-    }
+    // This function is being wrapped in requestAnimationFrame for reliability
+    requestAnimationFrame(() => {
+        if (DOMElements.statusIndicator) {
+            const colors = {
+                info: 'text-slate-500',
+                success: 'text-green-600',
+                error: 'text-red-600',
+                loading: 'text-blue-600'
+            };
+            let spinnerHtml = showSpinner ?
+                '<div class="spinner animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>' :
+                '';
+            DOMElements.statusIndicator.innerHTML = `${spinnerHtml}<span class="ml-2">${text}</span>`;
+            DOMElements.statusIndicator.className = `flex items-center gap-2 text-sm p-2 rounded-md ${colors[type] || colors.info}`;
+        }
+    });
+    // The console log remains for debugging purposes
     console.log('Status Update:', { text, type, showSpinner });
 }
 

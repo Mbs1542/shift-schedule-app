@@ -1,9 +1,6 @@
-// קובץ: JS/services/hilanetParser.js
-
-import { DEFAULT_SHIFT_TIMES } from '../config.js';
 import { getWeekId } from '../utils.js';
 
-// --- פונקציות חדשות לניקוי וניתוח טקסט ---
+// --- פונקציות חדשות לניקוי וניתוח טקסט (נשמרו כפי שהן) ---
 
 /**
  * מנקה טקסט שחולץ מ-PDF על ידי הסרת רווחים כפולים ומיותרים.
@@ -31,12 +28,10 @@ function extractEmployeeName(cleanedText) {
     for (const pattern of employeeNamePatterns) {
         const match = cleanedText.match(pattern);
         if (match && match[1]) {
-            // החזר את השם "מאור" אם נמצאה התאמה
             if (match[1].includes('מאור')) return 'מאור';
         }
     }
-    // נסה למצוא את השם "מאור" באופן כללי
-     if (cleanedText.includes('מאור')) {
+    if (cleanedText.includes('מאור')) {
         return 'מאור';
     }
     return null;
@@ -58,6 +53,7 @@ function extractDate(cleanedText) {
     }
     return { month: new Date().getMonth() + 1, year: new Date().getFullYear() }; // ברירת מחדל
 }
+
 
 // --- פונקציות קיימות שעודכנו ---
 
@@ -84,12 +80,10 @@ export function processHilanetData(rawText) {
     return { employeeName, detectedMonth: month, detectedYear: year };
 }
 
-
 /**
  * קורא לפונקציית השרת של Gemini כדי לחלץ משמרות מתמונה.
  */
 export async function callGeminiForShiftExtraction(imageDataBase64, month, year, employeeName) {
-    // תיקון: שימוש במשתנים month ו-year שהתקבלו כפרמטרים
     const prompt = `
         You are an expert at extracting structured data from tables in Hebrew documents.
         The provided image is a page from a work schedule report for month ${month}/${year} for employee ${employeeName}.
@@ -114,8 +108,8 @@ export async function callGeminiForShiftExtraction(imageDataBase64, month, year,
           { "day": 5, "dayOfWeekHebrew": "ש", "entryTime": "", "exitTime": "", "comments": "ש" },
           { "day": 6, "dayOfWeekHebrew": "א", "entryTime": "13:00", "exitTime": "22:00", "comments": "" }
         ]
-    `; // סוף ה-prompt
-    
+    `;
+
     try {
         const response = await fetch('/.netlify/functions/callGemini', {
             method: 'POST',
@@ -124,12 +118,10 @@ export async function callGeminiForShiftExtraction(imageDataBase64, month, year,
         });
 
         if (!response.ok) {
-            // נסה לקרוא את גוף השגיאה כ-JSON, אך הימנע מקריסה אם הוא ריק
             let errorData = {};
             try {
                 errorData = await response.json();
             } catch (e) {
-                // גוף השגיאה אינו JSON או שהוא ריק
                 errorData = { error: `Server responded with status: ${response.status}` };
             }
             throw new Error(errorData.error || 'Failed to communicate with the server.');
@@ -148,8 +140,6 @@ export async function callGeminiForShiftExtraction(imageDataBase64, month, year,
     }
 }
 
-
-
 /**
  * מארגן את המשמרות שחולצו למבנה נתונים תקין.
  */
@@ -158,14 +148,11 @@ export function structureShifts(shifts, month, year, employeeName) {
     if (!Array.isArray(shifts)) return structured;
 
     shifts.forEach(shift => {
-        // תיקון: שימוש ב-entryTime ו-exitTime במקום startTime ו-endTime
-        // וגם בדיקה שהשעות אינן ריקות
         if (!shift.day || !shift.entryTime || !shift.exitTime) {
-            return; // דלג על ימים ללא נתוני שעות מלאים
+            return;
         }
 
         const dateString = `${year}-${String(month).padStart(2, '0')}-${String(shift.day).padStart(2, '0')}`;
-        // תיקון: שימוש ב-entryTime לחישוב סוג המשמרת
         const shiftType = parseInt(shift.entryTime.split(':')[0], 10) < 12 ? 'morning' : 'evening';
         
         if (!structured[dateString]) {
@@ -174,7 +161,6 @@ export function structureShifts(shifts, month, year, employeeName) {
         
         structured[dateString][shiftType] = {
             employee: employeeName,
-            // תיקון: שימוש ב-entryTime ו-exitTime והוספת שניות
             start: `${shift.entryTime}:00`,
             end: `${shift.exitTime}:00`,
         };
@@ -213,6 +199,50 @@ export function compareSchedules(googleSheetsShifts, hilanetShifts) {
 
     return differences.sort((a, b) => new Date(a.date) - new Date(b.date));
 }
+
+/**
+ * מטפל ביבוא של משמרות שנבחרו מההשוואה.
+ * @param {Array} selectedDifferences - מערך הפערים שהמשתמש בחר לייבא.
+ * @param {Object} allSchedules - אובייקט כלל הסידורים הקיים.
+ * @returns {{updatedSchedules: Object, importedCount: number}} - אובייקט עם הסידור המעודכן וספירת הפעולות.
+ */
+export function handleImportSelectedHilanetShifts(selectedDifferences, allSchedules) {
+    if (!selectedDifferences || selectedDifferences.length === 0) {
+        return { updatedSchedules: allSchedules, importedCount: 0 };
+    }
+
+    let importedCount = 0;
+    // Create a deep copy to avoid modifying the original object directly
+    const newSchedules = JSON.parse(JSON.stringify(allSchedules));
+
+    selectedDifferences.forEach(diff => {
+        // The logic is focused only on adding or changing shifts based on Hilanet data
+        if (diff.type === 'added' || diff.type === 'changed') {
+            const weekId = getWeekId(diff.date);
+            const dayName = new Date(diff.date).toLocaleDateString('he-IL', { weekday: 'long' });
+            
+            // Ensure the nested path exists
+            if (!newSchedules[weekId]) {
+                newSchedules[weekId] = {};
+            }
+            if (!newSchedules[weekId][dayName]) {
+                newSchedules[weekId][dayName] = {};
+            }
+
+            // Update the schedule with the shift from Hilanet
+            newSchedules[weekId][dayName][diff.shiftType] = diff.hilanet;
+            importedCount++;
+        }
+    });
+
+    return { 
+        updatedSchedules: newSchedules, 
+        importedCount: importedCount
+    };
+}
+
+
+// --- פונקציות עזר קיימות (נשמרו כפי שהן) ---
 
 export function handleUploadHilanetBtnClick() {
     document.getElementById('upload-hilanet-input').click();
@@ -263,54 +293,4 @@ export function parseHilanetXLSXForMaor(data) {
     });
 
     return shifts;
-}
-
-/**
- * מטפל ביבוא של משמרות שנבחרו מההשוואה.
- * @param {Array} currentDifferences - מערך הפערים הנוכחי המוצג למשתמש.
- * @param {Object} allSchedules - אובייקט כלל הסידורים הקיים.
- * @returns {{updatedSchedules: Object, importedCount: number, selectedCount: number}} - אובייקט עם הסידור המעודכן וספירת הפעולות.
- */
-export function handleImportSelectedHilanetShifts(currentDifferences, allSchedules) {
-    const selectedIds = new Set(
-        Array.from(document.querySelectorAll('.difference-checkbox:checked'))
-        .map(cb => cb.dataset.diffId)
-    );
-
-    if (selectedIds.size === 0) {
-        return { updatedSchedules: allSchedules, importedCount: 0, selectedCount: 0 };
-    }
-
-    let importedCount = 0;
-    const newSchedules = JSON.parse(JSON.stringify(allSchedules));
-
-    currentDifferences
-        .filter(diff => selectedIds.has(diff.id))
-        .forEach(diff => {
-            const weekId = getWeekId(diff.date);
-            const dayName = new Date(diff.date).toLocaleDateString('he-IL', { weekday: 'long' });
-            const shiftType = diff.shiftType;
-
-            if (!newSchedules[weekId]) {
-                newSchedules[weekId] = {};
-            }
-            if (!newSchedules[weekId][dayName]) {
-                newSchedules[weekId][dayName] = {};
-            }
-
-            if (diff.type === 'added' || diff.type === 'changed') {
-                newSchedules[weekId][dayName][shiftType] = diff.hilanet;
-                importedCount++;
-            } else if (diff.type === 'removed') {
-                if (newSchedules[weekId][dayName] && newSchedules[weekId][dayName][shiftType]) {
-                    delete newSchedules[weekId][dayName][shiftType];
-                }
-            }
-    });
-
-    return { 
-        updatedSchedules: newSchedules, 
-        importedCount: importedCount, 
-        selectedCount: selectedIds.size 
-    };
 }
