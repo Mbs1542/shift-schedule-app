@@ -437,42 +437,24 @@ async function handleUploadHilanet(event) {
                 const pdfData = new Uint8Array(e.target.result);
                 const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
                 
-                // שלב 1: חילוץ טקסט נקי מהעמוד הראשון לצורך מטא-דאטה
+                // שלב 1: חילוץ טקסט ונתונים מהעמוד הראשון
                 const firstPage = await pdf.getPage(1);
                 const textContent = await firstPage.getTextContent();
                 const rawText = textContent.items.map(item => item.str).join(' ');
                 
+                // Keep your existing metadata extraction
                 const { employeeName, detectedMonth, detectedYear } = hilanetParser.processHilanetData(rawText);
 
-                // שלב 2: עיבוד כל עמוד כתמונה ושליחה ל-Gemini
-                updateStatus(`מכין ${pdf.numPages} עמודים לעיבוד...`, 'loading', true);
-
-                const pagePromises = [];
-                for (let i = 1; i <= pdf.numPages; i++) {
-                    pagePromises.push(pdf.getPage(i));
-                }
-                const pages = await Promise.all(pagePromises);
-
-                const extractionPromises = pages.map(async (page, index) => {
-                    updateStatus(`שולח עמוד ${index + 1} מתוך ${pdf.numPages} לניתוח...`, 'loading', true); 
-                    
-                    const scale = 2.0; 
-                    const viewport = page.getViewport({ scale });
-                    const canvas = document.createElement('canvas');
-                    const context = canvas.getContext('2d');
-                    canvas.height = viewport.height;
-                    canvas.width = viewport.width;
-
-                    await page.render({ canvasContext: context, viewport: viewport }).promise;                    
-                    const imageDataBase64 = canvas.toDataURL('image/png'); // Using PNG as per previous fix
-                    return hilanetParser.callGeminiForShiftExtraction(imageDataBase64, detectedMonth, detectedYear, employeeName, 'hilanet');
-                });
-
-                const results = await Promise.all(extractionPromises);
-                const allShifts = results.flat();
+                // --- NEW LOGIC: Parse shifts directly from text ---
+                updateStatus('מפענח משמרות מתוך הטקסט...', 'loading', true);
+                // Assuming parseShiftsFromTextItems is available here
+                const allShifts = parseShiftsFromTextItems(textContent.items); 
+                
                 if (allShifts.length === 0) {
                     updateStatus('לא נמצאו משמרות לניתוח בקובץ ה-PDF.', 'info');
-                    return; // אין צורך להמשיך
+                    setProcessingStatus(false);
+                    event.target.value = '';
+                    return;
                 }
 
                 currentHilanetShifts = hilanetParser.structureShifts(allShifts, detectedMonth, detectedYear, employeeName);
@@ -485,10 +467,8 @@ async function handleUploadHilanet(event) {
                 updateStatus('השוואת הסידורים הושלמה!', 'success');
 
             } catch (error) {
-                // תפיסת שגיאות מכל התהליך הפנימי
                 displayAPIError(error, 'אירעה שגיאה בעיבוד הקובץ.');
             } finally {
-                // איפוס והפעלה מחדש של כפתורים
                 event.target.value = ''; 
                 setProcessingStatus(false);
             }

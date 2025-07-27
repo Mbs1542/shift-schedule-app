@@ -383,3 +383,55 @@ export function parseHilanetXLSXForMaor(data) {
 
     return shifts;
 }
+/**
+ * Parses text items extracted from a Hilanet PDF to find shift data.
+ * @param {Array} textItems - The array of items from pdf.js's getTextContent().
+ * @returns {Array} An array of structured shift objects.
+ */
+function parseShiftsFromTextItems(textItems) {
+    const shifts = [];
+    const lines = {};
+
+    // 1. Group text items into lines based on their vertical position (transform[5])
+    textItems.forEach(item => {
+        const y = Math.round(item.transform[5]);
+        if (!lines[y]) lines[y] = [];
+        lines[y].push({
+            text: item.str.trim(),
+            x: Math.round(item.transform[4])
+        });
+    });
+
+    // 2. Process each line to find valid shifts
+    for (const y in lines) {
+        const lineItems = lines[y].sort((a, b) => a.x - b.x); // Sort items by horizontal position
+        const lineText = lineItems.map(item => item.text).join(' ');
+
+        // A valid shift line typically starts with a day number (e.g., "02", "03", ...)
+        const dayMatch = lineText.match(/^\d{1,2}/);
+        if (!dayMatch) continue;
+
+        const day = parseInt(dayMatch[0], 10);
+
+        // Find all time-like strings (e.g., "07:00", "16:00")
+        const timeMatches = lineText.match(/(\d{1,2}:\d{2})/g) || [];
+
+        // Expect pairs of times (start and end)
+        if (timeMatches.length >= 2) {
+            // Hilanet reports can have multiple shifts on one line, process them in pairs.
+            for (let i = 0; i < timeMatches.length; i += 2) {
+                if (timeMatches[i+1]) {
+                     shifts.push({
+                        day: day,
+                        entryTime: timeMatches[i],
+                        exitTime: timeMatches[i+1]
+                    });
+                }
+            }
+        }
+    }
+    return shifts;
+}
+
+// Don't forget to export it if it's in a separate module
+// export { parseShiftsFromTextItems };
