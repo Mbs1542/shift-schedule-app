@@ -1,16 +1,26 @@
 // In file: JS/services/hilanetParser.js
 
-// **FIX**: Importing DAYS to ensure consistent day names across the app.
 import { getWeekId, DAYS } from '../utils.js';
 
 /**
- * Cleans text extracted from a PDF by removing extra spaces.
+ * Cleans text extracted from a PDF by removing extra spaces, focusing on time formats.
  * @param {string} text - The raw text from the PDF.
  * @returns {string} Cleaned text ready for processing.
  */
 function normalizeText(text) {
     if (!text) return '';
-    return text.replace(/\s+/g, ' ').replace(/([א-ת])\s(?=[א-ת])/g, '$1').trim();
+    let cleanedText = text.replace(/\s+/g, ' '); // Standard space normalization
+    
+    // **שיפור**: ניקוי אגרסיבי יותר של רווחים בתוך מחרוזות זמן
+    // הופך "0 0 : 7 0" ל "00:70"
+    cleanedText = cleanedText.replace(/(\d)\s+(\d)\s+:\s+(\d)\s+(\d)/g, '$1$2:$3$4');
+    // הופך "0 0 : 1 6" ל "00:16"
+    cleanedText = cleanedText.replace(/(\d)\s+(\d)\s?:\s?(\d\d)/g, '$1$2:$3');
+    // הופך "1 3 : 0 0" ל "13:00"
+    cleanedText = cleanedText.replace(/(\d\d)\s?:\s?(\d)\s+(\d)/g, '$1:$2$3');
+
+    cleanedText = cleanedText.replace(/([א-ת])\s(?=[א-ת])/g, '$1').trim();
+    return cleanedText;
 }
 
 /**
@@ -22,12 +32,13 @@ function extractEmployeeName(cleanedText) {
     const employeeNamePatterns = [
         /(?:בן סימון|סימון בן)\s+(מאור)/i,
         /מאור\s+(?:בן סימון|סימון)/i,
-        /עובד:\s*([\u0590-\u05FF\s]+)\s*\d{9}/i
+        /עובד\s*.*?(\d{9}).*?(מאור)/i, // Improved pattern to find name near ID
+        /עובד\s*([\u0590-\u05FF\s]+?)\s*\d{9}/i
     ];
 
     for (const pattern of employeeNamePatterns) {
         const match = cleanedText.match(pattern);
-        if (match && match[1] && match[1].includes('מאור')) {
+        if (match && (match[1]?.includes('מאור') || match[2]?.includes('מאור'))) {
             return 'מאור';
         }
     }
@@ -43,7 +54,8 @@ function extractEmployeeName(cleanedText) {
  * @returns {{month: number, year: number}} An object with the month and year.
  */
 function extractDate(cleanedText) {
-    const dateMatch = cleanedText.match(/לחודש\s+(\d{2})\/(\d{2,4})/);
+    // Improved regex to be more flexible with spacing
+    const dateMatch = cleanedText.match(/לחודש\s+(\d{1,2})\s*\/\s*(\d{2,4})/);
     if (dateMatch) {
         const year = parseInt(dateMatch[2], 10);
         return {
@@ -60,11 +72,14 @@ function extractDate(cleanedText) {
  * @returns {Object} An object containing the employee's name, month, and year.
  */
 export function processHilanetData(rawText) {
-    console.log("--- Full Document Text for Hilanet Processing ---");
+    console.log("--- Raw Document Text for Hilanet Processing ---");
     console.log(rawText);
+    
+    const cleanedText = normalizeText(rawText);
+    console.log("--- Cleaned Document Text ---");
+    console.log(cleanedText);
     console.log("--- End of Document Text ---");
 
-    const cleanedText = normalizeText(rawText);
     const employeeName = extractEmployeeName(cleanedText);
     const { month, year } = extractDate(cleanedText);
 
@@ -81,14 +96,26 @@ export function processHilanetData(rawText) {
  * Calls the Gemini server function to extract shifts from an image.
  */
 export async function callGeminiForShiftExtraction(imageDataBase64, month, year, employeeName) {
+    // **שיפור**: הנחיה מפורטת יותר ל-Gemini
     const prompt = `
         You are an expert at extracting structured data from tables in Hebrew documents.
         The provided image is a page from a work schedule report for month ${month}/${year} for employee ${employeeName}.
-        Your task is to find the main table containing daily entries. For each row that represents a day, extract the following information:
-        1. "day": The day of the month (e.g., '01', '02').
-        2. "entryTime": The entry time (כניסה) in HH:MM format.
-        3. "exitTime": The exit time (יציאה) in HH:MM format.
+        Your task is to find the main table containing daily entries. For each row that represents a work day, extract the following information:
+        1. "day": The day of the month as a number (e.g., 1, 2, 15).
+        2. "entryTime": The entry time (כניסה) in HH:MM format. If the time is invalid or missing, return null.
+        3. "exitTime": The exit time (יציאה) in HH:MM format. If the time is invalid or missing, return null.
+        
+        IMPORTANT:
+        - Ignore rows that are not work days (like 'שבת' or empty days).
+        - Focus only on the main entry and exit times for the day.
+        - Ensure the time format is always HH:MM. For example, '7:00' should be '07:00'.
+
         Respond ONLY with a valid JSON array of objects. Do not include markdown or explanations.
+        Example of a valid response:
+        [
+          { "day": 1, "entryTime": "07:00", "exitTime": "16:00" },
+          { "day": 2, "entryTime": "13:00", "exitTime": "22:00" }
+        ]
     `;
 
     try {
@@ -104,13 +131,18 @@ export async function callGeminiForShiftExtraction(imageDataBase64, month, year,
         }
 
         const result = await response.json();
-        const jsonText = result.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
+        // More robust JSON cleaning
+        const jsonText = result.candidates[0].content.parts[0].text
+            .replace(/```json/g, '')
+            .replace(/```/g, '')
+            .trim();
         return JSON.parse(jsonText);
     } catch (error) {
         console.error("Error calling Gemini for shift extraction:", error);
         throw new Error("Failed to extract shifts using AI. " + error.message);
     }
 }
+
 
 /**
  * Organizes the extracted shifts from Gemini (PDF) into a structured object.
@@ -122,7 +154,6 @@ export function structureShifts(shifts, month, year, employeeName) {
     shifts.forEach(shift => {
         if (!shift.day || !shift.entryTime || !shift.exitTime) return;
 
-        // **התיקון כאן: בדיקה והיפוך שעות במידת הצורך**
         let entryTime = shift.entryTime;
         let exitTime = shift.exitTime;
 
@@ -132,7 +163,6 @@ export function structureShifts(shifts, month, year, employeeName) {
         }
 
         const dateString = `${year}-${String(month).padStart(2, '0')}-${String(shift.day).padStart(2, '0')}`;
-        // Use the corrected entry time to determine shift type
         const shiftType = parseInt(entryTime.split(':')[0], 10) < 12 ? 'morning' : 'evening';
         
         if (!structured[dateString]) structured[dateString] = {};
@@ -156,7 +186,6 @@ export function compareSchedules(googleSheetsShifts, hilanetShifts) {
     allDates.forEach(date => {
         const gsDay = googleSheetsShifts[date] || {};
         const hlDay = hilanetShifts[date] || {};
-        // **FIX**: Using the DAYS array to get a consistent day name (e.g., "ראשון").
         const dayName = DAYS[new Date(date).getDay()];
 
         ['morning', 'evening'].forEach(shiftType => {
@@ -191,7 +220,6 @@ export function handleImportSelectedHilanetShifts(selectedDifferences, allSchedu
     selectedDifferences.forEach(diff => {
         if (diff.type === 'added' || diff.type === 'changed') {
             const weekId = getWeekId(diff.date);
-            // **FIX**: Using the DAYS array here as well for consistency.
             const dayName = DAYS[new Date(diff.date).getDay()];
             
             if (!newSchedules[weekId]) newSchedules[weekId] = {};
@@ -244,7 +272,6 @@ export function parseHilanetXLSXForMaor(data) {
             const times = row.filter(cell => typeof cell === 'string' && timePattern.test(cell));
 
             if (times.length >= 2) {
-                // **התיקון כאן: בדיקה והיפוך שעות במידת הצורך**
                 let startTime = times[0];
                 let endTime = times[1];
 
