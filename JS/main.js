@@ -773,7 +773,7 @@ function initializeAppLogic() {
 
 document.addEventListener('DOMContentLoaded', initializeAppLogic);
 /**
- * Handles the image upload process.
+ * Handles the image upload process. Reads the file and stores its data on the modal.
  * @param {Event} event - The file input change event.
  */
 async function handleUploadImage(event) {
@@ -794,9 +794,17 @@ async function handleUploadImage(event) {
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = () => {
-        // Remove the data URL prefix to get the pure base64 string
         const imageDataBase64 = reader.result.split(',')[1];
-        showImageMetadataModal(imageDataBase64);
+        
+        if (!imageDataBase64 || imageDataBase64.length < 100) {
+            displayAPIError(null, "שגיאה בקריאת נתוני התמונה. ייתכן שהקובץ פגום.");
+            setProcessingStatus(false);
+            return;
+        }
+
+  // **התיקון**: שמירת המידע ישירות על אלמנט ה-DOM של המודאל
+        DOMElements.imageMetadataModal.dataset.imageData = imageDataBase64;
+        showImageMetadataModal();
     };
     reader.onerror = (error) => {
         displayAPIError(error, 'שגיאה בקריאת קובץ התמונה.');
@@ -807,10 +815,9 @@ async function handleUploadImage(event) {
 }
 
 /**
- * Shows a modal to get required metadata (month, year) for the uploaded image.
- * @param {string} imageDataBase64 - The base64 encoded image data.
+ * Shows a modal to get required metadata. The confirm handler now reads data from the modal's dataset.
  */
-function showImageMetadataModal(imageDataBase64) {
+function showImageMetadataModal() {
     const modal = DOMElements.imageMetadataModal;
     const monthSelect = DOMElements.imageMonthSelect;
     const yearSelect = DOMElements.imageYearSelect;
@@ -841,8 +848,21 @@ function showImageMetadataModal(imageDataBase64) {
 
     modal.classList.remove('hidden');
 
-    const confirmHandler = async () => {
+    const cleanup = () => {
         modal.classList.add('hidden');
+        modal.dataset.imageData = ''; // **חשוב**: ניקוי המידע מה-DOM
+        setProcessingStatus(false);
+    };
+
+    const confirmHandler = async () => {
+        // **התיקון**: קריאת המידע ישירות מה-DOM לפני השליחה
+        const imageDataBase64 = modal.dataset.imageData;
+
+        if (!imageDataBase64 || imageDataBase64.length < 100) {
+            displayAPIError(null, "שגיאה: נתוני התמונה לא נמצאו בעת הניתוח.");
+            cleanup();
+            return;
+        }
         
         const employeeName = DOMElements.imageEmployeeSelect.value;
         const detectedMonth = DOMElements.imageMonthSelect.value;
@@ -854,11 +874,10 @@ function showImageMetadataModal(imageDataBase64) {
             
             if (!extractedShifts || extractedShifts.length === 0) {
                 updateStatus('לא נמצאו משמרות בתמונה.', 'info');
-                setProcessingStatus(false);
+                cleanup();
                 return;
             }
 
-            // Reuse existing logic to process and compare shifts
             currentHilanetShifts = hilanetParser.structureShifts(extractedShifts, detectedMonth, detectedYear, employeeName);
             
             updateStatus('משווה סידורים...', 'loading', true);
@@ -871,13 +890,12 @@ function showImageMetadataModal(imageDataBase64) {
         } catch (error) {
             displayAPIError(error, 'אירעה שגיאה בעיבוד התמונה.');
         } finally {
-            setProcessingStatus(false);
+            cleanup();
         }
     };
 
     const cancelHandler = () => {
-        modal.classList.add('hidden');
-        setProcessingStatus(false);
+        cleanup();
         updateStatus('העלאת התמונה בוטלה.', 'info');
     };
 
