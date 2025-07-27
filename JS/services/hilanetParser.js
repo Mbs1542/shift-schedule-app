@@ -287,7 +287,7 @@ export function handleImportSelectedHilanetShifts(currentDifferences, allSchedul
     currentDifferences
         .filter(diff => selectedIds.has(diff.id))
         .forEach(diff => {
-            const weekId = getWeekId(new Date(diff.date));
+            const weekId = getWeekId(diff.date);
             const dayName = new Date(diff.date).toLocaleDateString('he-IL', { weekday: 'long' });
             const shiftType = diff.shiftType;
 
