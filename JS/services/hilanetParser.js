@@ -1,4 +1,3 @@
-// In file: JS/services/hilanetParser.js
 
 import { getWeekId, DAYS } from '../utils.js';
 
@@ -95,8 +94,8 @@ export function processHilanetData(rawText) {
 /**
  * Calls the Gemini server function to extract shifts from an image.
  */
-export async function callGeminiForShiftExtraction(imageDataBase64, month, year, employeeName) {
-    // **שיפור**: הנחיה מפורטת יותר ל-Gemini
+ // ======================= THIS IS THE CORRECTED FUNCTION =======================
+export async function callGeminiForShiftExtraction(imageData, month, year, employeeName) {
     const prompt = `
         You are an expert at extracting structured data from tables in Hebrew documents.
         The provided image is a page from a work schedule report for month ${month}/${year} for employee ${employeeName}.
@@ -122,7 +121,8 @@ export async function callGeminiForShiftExtraction(imageDataBase64, month, year,
         const response = await fetch('/.netlify/functions/callGemini', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imageDataBase64, prompt })
+            // *** THE FIX IS HERE: The key is now 'imageData' to match the server ***
+            body: JSON.stringify({ imageData, prompt })
         });
 
         if (!response.ok) {
@@ -131,7 +131,6 @@ export async function callGeminiForShiftExtraction(imageDataBase64, month, year,
         }
 
         const result = await response.json();
-        // More robust JSON cleaning
         const jsonText = result.candidates[0].content.parts[0].text
             .replace(/```json/g, '')
             .replace(/```/g, '')
@@ -142,6 +141,7 @@ export async function callGeminiForShiftExtraction(imageDataBase64, month, year,
         throw new Error("Failed to extract shifts using AI. " + error.message);
     }
 }
+ // ==============================================================================
 
 
 /**
