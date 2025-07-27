@@ -26,7 +26,7 @@ exports.handler = async function(event) {
         const pureBase64 = imageData.includes(',') ? imageData.split(',')[1] : imageData;
         // =====================================================================
 
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
         // 5. This is the corrected payload to send to Google
         const payload = {
