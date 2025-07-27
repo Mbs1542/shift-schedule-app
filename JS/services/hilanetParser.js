@@ -8,16 +8,10 @@ import { getWeekId, DAYS } from '../utils.js';
  */
 function normalizeText(text) {
     if (!text) return '';
-    let cleanedText = text.replace(/\s+/g, ' '); // Standard space normalization
-    
-    // **שיפור**: ניקוי אגרסיבי יותר של רווחים בתוך מחרוזות זמן
-    // הופך "0 0 : 7 0" ל "00:70"
+    let cleanedText = text.replace(/\s+/g, ' ');
     cleanedText = cleanedText.replace(/(\d)\s+(\d)\s+:\s+(\d)\s+(\d)/g, '$1$2:$3$4');
-    // הופך "0 0 : 1 6" ל "00:16"
     cleanedText = cleanedText.replace(/(\d)\s+(\d)\s?:\s?(\d\d)/g, '$1$2:$3');
-    // הופך "1 3 : 0 0" ל "13:00"
     cleanedText = cleanedText.replace(/(\d\d)\s?:\s?(\d)\s+(\d)/g, '$1:$2$3');
-
     cleanedText = cleanedText.replace(/([א-ת])\s(?=[א-ת])/g, '$1').trim();
     return cleanedText;
 }
@@ -31,10 +25,9 @@ function extractEmployeeName(cleanedText) {
     const employeeNamePatterns = [
         /(?:בן סימון|סימון בן)\s+(מאור)/i,
         /מאור\s+(?:בן סימון|סימון)/i,
-        /עובד\s*.*?(\d{9}).*?(מאור)/i, // Improved pattern to find name near ID
+        /עובד\s*.*?(\d{9}).*?(מאור)/i,
         /עובד\s*([\u0590-\u05FF\s]+?)\s*\d{9}/i
     ];
-
     for (const pattern of employeeNamePatterns) {
         const match = cleanedText.match(pattern);
         if (match && (match[1]?.includes('מאור') || match[2]?.includes('מאור'))) {
@@ -53,7 +46,6 @@ function extractEmployeeName(cleanedText) {
  * @returns {{month: number, year: number}} An object with the month and year.
  */
 function extractDate(cleanedText) {
-    // Improved regex to be more flexible with spacing
     const dateMatch = cleanedText.match(/לחודש\s+(\d{1,2})\s*\/\s*(\d{2,4})/);
     if (dateMatch) {
         const year = parseInt(dateMatch[2], 10);
@@ -71,14 +63,7 @@ function extractDate(cleanedText) {
  * @returns {Object} An object containing the employee's name, month, and year.
  */
 export function processHilanetData(rawText) {
-    console.log("--- Raw Document Text for Hilanet Processing ---");
-    console.log(rawText);
-    
     const cleanedText = normalizeText(rawText);
-    console.log("--- Cleaned Document Text ---");
-    console.log(cleanedText);
-    console.log("--- End of Document Text ---");
-
     const employeeName = extractEmployeeName(cleanedText);
     const { month, year } = extractDate(cleanedText);
 
@@ -86,15 +71,12 @@ export function processHilanetData(rawText) {
         console.error("Employee name not found. Scanned text:", cleanedText.substring(0, 300));
         throw new Error("Employee name not found in the document.");
     }
-
-    console.log(`Data extracted: name=${employeeName}, month=${month}, year=${year}`);
     return { employeeName, detectedMonth: month, detectedYear: year };
 }
 
 /**
  * Calls the Gemini server function to extract shifts from an image.
  */
- // ======================= THIS IS THE CORRECTED FUNCTION =======================
 export async function callGeminiForShiftExtraction(imageData, month, year, employeeName) {
     const prompt = `
         You are an expert at extracting structured data from tables in Hebrew documents.
@@ -121,7 +103,9 @@ export async function callGeminiForShiftExtraction(imageData, month, year, emplo
         const response = await fetch('/.netlify/functions/callGemini', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            // *** THE FIX IS HERE: The key is now 'imageData' to match the server ***
+            // ===============================================
+            // THE FIX IS HERE: Sending 'imageData' to match the server
+            // ===============================================
             body: JSON.stringify({ imageData, prompt })
         });
 
@@ -141,7 +125,6 @@ export async function callGeminiForShiftExtraction(imageData, month, year, emplo
         throw new Error("Failed to extract shifts using AI. " + error.message);
     }
 }
- // ==============================================================================
 
 
 /**
@@ -157,9 +140,8 @@ export function structureShifts(shifts, month, year, employeeName) {
         let entryTime = shift.entryTime;
         let exitTime = shift.exitTime;
 
-        // Sanity check: if exit time is earlier than entry time, swap them
         if (new Date(`1970-01-01T${exitTime}`) < new Date(`1970-01-01T${entryTime}`)) {
-            [entryTime, exitTime] = [exitTime, entryTime]; // Swap the times
+            [entryTime, exitTime] = [exitTime, entryTime];
         }
 
         const dateString = `${year}-${String(month).padStart(2, '0')}-${String(shift.day).padStart(2, '0')}`;
@@ -275,9 +257,8 @@ export function parseHilanetXLSXForMaor(data) {
                 let startTime = times[0];
                 let endTime = times[1];
 
-                // Sanity check: if exit time is earlier than entry time, swap them
                 if (new Date(`1970-01-01T${endTime}`) < new Date(`1970-01-01T${startTime}`)) {
-                    [startTime, endTime] = [endTime, startTime]; // Swap the times
+                    [startTime, endTime] = [endTime, startTime];
                 }
 
                 const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
