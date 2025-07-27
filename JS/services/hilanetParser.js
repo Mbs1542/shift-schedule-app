@@ -78,21 +78,23 @@ export function processHilanetData(rawText) {
  * Calls the Gemini server function to extract shifts from an image.
  */
 export async function callGeminiForShiftExtraction(imageData, month, year, employeeName) {
+    // --- IMPROVEMENT 3: A more robust and detailed prompt ---
     const prompt = `
-        You are an expert at extracting structured data from tables in Hebrew documents.
-        The provided image is a page from a work schedule report for month ${month}/${year} for employee ${employeeName}.
-        Your task is to find the main table containing daily entries. For each row that represents a work day, extract the following information:
-        1. "day": The day of the month as a number (e.g., 1, 2, 15).
-        2. "entryTime": The entry time (כניסה) in HH:MM format. If the time is invalid or missing, return null.
-        3. "exitTime": The exit time (יציאה) in HH:MM format. If the time is invalid or missing, return null.
-        
-        IMPORTANT:
-        - Ignore rows that are not work days (like 'שבת' or empty days).
-        - Focus only on the main entry and exit times for the day.
-        - Ensure the time format is always HH:MM. For example, '7:00' should be '07:00'.
+        You are a highly accurate data extraction assistant specializing in Hebrew work schedules.
+        The provided image is a page from a work schedule report for employee ${employeeName} for month ${month}/${year}.
+        Your task is to meticulously scan the main table for daily work entries and extract the following for each valid day:
+        1.  "day": The numeric day of the month (e.g., 1, 15, 31).
+        2.  "entryTime": The start time of the shift (found under a column similar to 'כניסה') in strict HH:MM format.
+        3.  "exitTime": The end time of the shift (found under a column similar to 'יציאה') in strict HH:MM format.
 
-        Respond ONLY with a valid JSON array of objects. Do not include markdown or explanations.
-        Example of a valid response:
+        RULES AND GUIDELINES:
+        -   **Focus**: Only extract data from rows that clearly represent a workday with both an entry and exit time. Ignore summary rows, headers, footers, and days off (like 'שבת' or empty rows).
+        -   **Time Formatting**: Always format time as HH:MM. For example, '7:00' must be converted to '07:00'. If a time is unreadable or invalid, you must return null for that field.
+        -   **Data Validation**: Ensure that 'entryTime' is logically before 'exitTime'.
+        -   **Output Format**: Your response MUST be a valid JSON array. Do not include any text, explanations, or markdown like \`\`\`json.
+        -   **No Data Found**: If the page contains no valid work entries that match the criteria, you MUST return an empty array: [].
+
+        Example of a perfect response for a page with two workdays:
         [
           { "day": 1, "entryTime": "07:00", "exitTime": "16:00" },
           { "day": 2, "entryTime": "13:00", "exitTime": "22:00" }
@@ -103,10 +105,7 @@ export async function callGeminiForShiftExtraction(imageData, month, year, emplo
         const response = await fetch('/.netlify/functions/callGemini', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            // ===============================================
-            // THE FIX IS HERE: Sending 'imageData' to match the server
-            // ===============================================
-            body: JSON.stringify({ imageData, prompt })
+            body: JSON.stringify({ imageData, prompt }) // imageData from the function parameter
         });
 
         if (!response.ok) {
@@ -115,11 +114,20 @@ export async function callGeminiForShiftExtraction(imageData, month, year, emplo
         }
 
         const result = await response.json();
-        const jsonText = result.candidates[0].content.parts[0].text
-            .replace(/```json/g, '')
-            .replace(/```/g, '')
-            .trim();
-        return JSON.parse(jsonText);
+
+        // --- IMPROVEMENT 4: More robust JSON parsing ---
+        // Find the JSON part even if the model accidentally adds extra text.
+        const textResponse = result.candidates[0].content.parts[0].text;
+        const jsonMatch = textResponse.match(/\[.*\]/s);
+        
+        if (!jsonMatch) {
+            console.error("Gemini did not return a valid JSON array. Response:", textResponse);
+            // Return an empty array to prevent downstream errors
+            return [];
+        }
+
+        return JSON.parse(jsonMatch[0]);
+
     } catch (error) {
         console.error("Error calling Gemini for shift extraction:", error);
         throw new Error("Failed to extract shifts using AI. " + error.message);
