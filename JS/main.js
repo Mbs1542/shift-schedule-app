@@ -553,10 +553,34 @@ async function handleImportSelectedHilanetShifts() {
             const currentWeekId = getWeekId(DOMElements.datePicker.value);
             renderSchedule(currentWeekId);
 
-            // This is key: Re-compare and refresh the differences modal instead of closing it
-            const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
-            currentDifferences = hilanetParser.compareSchedules(allGoogleSheetsShiftsForMaor, currentHilanetShifts);
-            displayDifferences(currentDifferences); // Refresh the modal content
+            // --- START OF FIX ---
+            // This is key: Re-compare using the UPDATED local data instead of re-fetching from the network.
+            
+            // 1. Extract Maor's shifts directly from the `allSchedules` object that was just updated in memory.
+            const updatedMaorShifts = {};
+            for (const weekId in allSchedules) {
+                const weekData = allSchedules[weekId];
+                const weekDates = getWeekDates(new Date(weekId));
+                weekDates.forEach(dateObj => {
+                    const dateString = dateObj.toISOString().split('T')[0];
+                    const dayName = DAYS[dateObj.getDay()];
+                    const dayData = weekData[dayName] || {};
+                    
+                    if (dayData.morning && dayData.morning.employee === 'מאור') {
+                        if (!updatedMaorShifts[dateString]) updatedMaorShifts[dateString] = {};
+                        updatedMaorShifts[dateString].morning = { ...dayData.morning };
+                    }
+                    if (dayData.evening && dayData.evening.employee === 'מאור') {
+                        if (!updatedMaorShifts[dateString]) updatedMaorShifts[dateString] = {};
+                        updatedMaorShifts[dateString].evening = { ...dayData.evening };
+                    }
+                });
+            }
+
+            // 2. Perform the comparison against the new, correct data.
+            currentDifferences = hilanetParser.compareSchedules(updatedMaorShifts, currentHilanetShifts);
+            displayDifferences(currentDifferences); // Refresh the modal content with the correct state.
+            // --- END OF FIX ---
 
             updateStatus(`יובאו ${importedCount} משמרות בהצלחה.`, 'success', false);
         } else {
@@ -566,7 +590,6 @@ async function handleImportSelectedHilanetShifts() {
         console.error("שגיאה במהלך ייבוא משמרות מחילנט:", error);
         updateStatus('שגיאה בעדכון המשמרות.', 'error', false);
     }
-    // The call to closeDifferencesModal() is removed from here.
 }
 
 function handleDownloadDifferences() {
