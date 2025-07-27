@@ -8,6 +8,7 @@ import { EMPLOYEES, DAYS, DEFAULT_SHIFT_TIMES, VACATION_EMPLOYEE_REPLACEMENT, CL
 import * as hilanetParser from './services/hilanetParser.js';
 import { formatDate, getWeekId, getWeekDates } from './utils.js';
 
+
 // --- Global Variables & State Management ---
 export let gapiInited = false;
 let gisInited = false;
@@ -683,7 +684,15 @@ function initializeAppLogic() {
         chartCard: document.getElementById('chart-card'),
         monthlySummaryChartCard: document.getElementById('monthly-summary-chart-card'),
         monthlySummaryEmployeeSelect: document.getElementById('monthly-summary-employee-select'),
-        customCloseDiffModalBtn: document.getElementById('custom-close-diff-modal-btn')
+        customCloseDiffModalBtn: document.getElementById('custom-close-diff-modal-btn'),
+        uploadImageBtn: document.getElementById('upload-image-btn'),
+        uploadImageInput: document.getElementById('upload-image-input'),
+        imageMetadataModal: document.getElementById('image-metadata-modal'),
+        imageEmployeeSelect: document.getElementById('image-employee-select'),
+        imageMonthSelect: document.getElementById('image-month-select'),
+        imageYearSelect: document.getElementById('image-year-select'),
+        imageMetadataConfirmBtn: document.getElementById('image-metadata-confirm-btn'),
+        imageMetadataCancelBtn: document.getElementById('image-metadata-cancel-btn')
     };
 
     function loadGoogleApiScripts() {
@@ -747,11 +756,142 @@ function initializeAppLogic() {
     if (DOMElements.differencesModal) DOMElements.differencesModal.addEventListener('click', e => {
         if (e.target === DOMElements.differencesModal) closeDifferencesModal();
     });
+    // **הוספת מאזיני האירועים החדשים כאן**
+    if (DOMElements.uploadImageBtn) {
+        DOMElements.uploadImageBtn.addEventListener('click', () => DOMElements.uploadImageInput.click());
+    }
+    if (DOMElements.uploadImageInput) {
+        DOMElements.uploadImageInput.addEventListener('change', handleUploadImage);
+    }
+
 
     const today = new Date().toISOString().split('T')[0];
     DOMElements.datePicker.value = getWeekId(today);
 
     loadGoogleApiScripts();
 }
+
+document.addEventListener('DOMContentLoaded', initializeAppLogic);
+/**
+ * Handles the image upload process.
+ * @param {Event} event - The file input change event.
+ */
+async function handleUploadImage(event) {
+    if (isProcessing) {
+        updateStatus('תהליך אחר כבר רץ, אנא המתן.', 'info');
+        return;
+    }
+    const file = event.target.files[0];
+    if (!file || !file.type.startsWith('image/')) {
+        updateStatus('אנא בחר קובץ תמונה בלבד.', 'info');
+        event.target.value = ''; // Reset input
+        return;
+    }
+
+    setProcessingStatus(true);
+    updateStatus('מעבד תמונה...', 'loading', true);
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+        // Remove the data URL prefix to get the pure base64 string
+        const imageDataBase64 = reader.result.split(',')[1];
+        showImageMetadataModal(imageDataBase64);
+    };
+    reader.onerror = (error) => {
+        displayAPIError(error, 'שגיאה בקריאת קובץ התמונה.');
+        setProcessingStatus(false);
+    };
+    // Reset input value to allow re-uploading the same file
+    event.target.value = '';
+}
+
+/**
+ * Shows a modal to get required metadata (month, year) for the uploaded image.
+ * @param {string} imageDataBase64 - The base64 encoded image data.
+ */
+function showImageMetadataModal(imageDataBase64) {
+    const modal = DOMElements.imageMetadataModal;
+    const monthSelect = DOMElements.imageMonthSelect;
+    const yearSelect = DOMElements.imageYearSelect;
+    const confirmBtn = DOMElements.imageMetadataConfirmBtn;
+    const cancelBtn = DOMElements.imageMetadataCancelBtn;
+
+    // Populate month and year selects
+    monthSelect.innerHTML = '';
+    for (let i = 1; i <= 12; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = i;
+        monthSelect.appendChild(option);
+    }
+
+    yearSelect.innerHTML = '';
+    const currentYear = new Date().getFullYear();
+    for (let i = currentYear - 2; i <= currentYear + 1; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = i;
+        yearSelect.appendChild(option);
+    }
+
+    // Set defaults to current month and year
+    monthSelect.value = new Date().getMonth() + 1;
+    yearSelect.value = currentYear;
+
+    modal.classList.remove('hidden');
+
+    const confirmHandler = async () => {
+        modal.classList.add('hidden');
+        
+        const employeeName = DOMElements.imageEmployeeSelect.value;
+        const detectedMonth = DOMElements.imageMonthSelect.value;
+        const detectedYear = DOMElements.imageYearSelect.value;
+
+        try {
+            updateStatus(`שולח תמונה לניתוח Gemini...`, 'loading', true);
+            const extractedShifts = await hilanetParser.callGeminiForShiftExtraction(imageDataBase64, detectedMonth, detectedYear, employeeName);
+            
+            if (!extractedShifts || extractedShifts.length === 0) {
+                updateStatus('לא נמצאו משמרות בתמונה.', 'info');
+                setProcessingStatus(false);
+                return;
+            }
+
+            // Reuse existing logic to process and compare shifts
+            currentHilanetShifts = hilanetParser.structureShifts(extractedShifts, detectedMonth, detectedYear, employeeName);
+            
+            updateStatus('משווה סידורים...', 'loading', true);
+            const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
+            currentDifferences = hilanetParser.compareSchedules(allGoogleSheetsShiftsForMaor, currentHilanetShifts);
+            
+            displayDifferences(currentDifferences);
+            updateStatus('השוואת הסידורים הושלמה!', 'success');
+
+        } catch (error) {
+            displayAPIError(error, 'אירעה שגיאה בעיבוד התמונה.');
+        } finally {
+            setProcessingStatus(false);
+        }
+    };
+
+    const cancelHandler = () => {
+        modal.classList.add('hidden');
+        setProcessingStatus(false);
+        updateStatus('העלאת התמונה בוטלה.', 'info');
+    };
+
+    // Use cloneNode to safely remove previous event listeners
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+    DOMElements.imageMetadataConfirmBtn = newConfirmBtn;
+    newConfirmBtn.addEventListener('click', confirmHandler);
+    
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    DOMElements.imageMetadataCancelBtn = newCancelBtn;
+    newCancelBtn.addEventListener('click', cancelHandler);
+}
+
 
 document.addEventListener('DOMContentLoaded', initializeAppLogic);

@@ -16,8 +16,6 @@
         // הגדרת נתיב ה-worker עבור PDF.js כדי למנוע אזהרות
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-   
 </head>
 <body class="bg-slate-100 p-4 sm:p-6 md:p-8">
 
@@ -47,12 +45,15 @@
                     <button id="download-excel-btn" class="btn btn-green">ייצוא ל-Excel</button>
                     <button id="copy-previous-week-btn" class="btn btn-blue">העתק שבוע קודם</button>
                     <button id="create-calendar-events-btn" class="btn btn-blue">צור אירועי יומן 📅</button>
-                    <button id="delete-calendar-events-btn" class="btn btn-red">מחק אירועי יומן לשבוע זה 🗑️</button>
+                    <button id="delete-calendar-events-btn" class="btn btn-red">מחק אירועי יומן 🗑️</button>
                     <button id="refresh-data-btn" class="btn btn-slate">רענן נתונים 🔄</button>
                     <button id="vacation-shift-btn" class="btn btn-blue">חופש מאור/מור 🏖️</button>
                     <a href="https://assuta.net.hilan.co.il/login" target="_blank" class="btn btn-orange">פתח אתר חילנט</a>
                     <input type="file" id="upload-hilanet-input" accept=".pdf, .xlsx, .xls" class="hidden">
-                    <button id="upload-hilanet-btn" class="btn btn-purple">העלה קובץ מחילנט (PDF/XLSX)</button>
+                    <button id="upload-hilanet-btn" class="btn btn-purple">העלה קובץ מחילנט</button>
+                    <!-- **הכפתור החדש** -->
+                    <input type="file" id="upload-image-input" accept="image/*" class="hidden">
+                    <button id="upload-image-btn" class="btn btn-cyan">העלה תמונה של סידור 🖼️</button>
                     <button id="show-chart-btn" class="btn btn-green">הצג גרף משמרות 📊</button>
                 </div>
             </div>
@@ -60,18 +61,18 @@
             <div id="schedule-card" class="card">
                 <h2 id="schedule-title" class="text-2xl font-semibold mb-4 text-slate-700 text-center"></h2>
                 <div class="overflow-x-auto">
-                <table id="schedule-table" class="w-full text-center text-slate-700 border-collapse">
-                <thead class="bg-slate-200">
-                <tr>
-                <th class="p-3 border border-slate-300">יום</th>
-                <th class="p-3 border border-slate-300">תאריך</th>
-                <th class="p-3 border border-slate-300">משמרת בוקר</th>
-                <th class="p-3 border border-slate-300">משמרת ערב</th>
-               </tr>
-               </thead>
-               <tbody id="schedule-body" class="bg-white">
-               </tbody>
-            </table>
+                    <table id="schedule-table" class="w-full text-center text-slate-700 border-collapse">
+                        <thead class="bg-slate-200">
+                            <tr>
+                                <th class="p-3 border border-slate-300">יום</th>
+                                <th class="p-3 border border-slate-300">תאריך</th>
+                                <th class="p-3 border border-slate-300">משמרת בוקר</th>
+                                <th class="p-3 border border-slate-300">משמרת ערב</th>
+                            </tr>
+                        </thead>
+                        <tbody id="schedule-body" class="bg-white">
+                        </tbody>
+                    </table>
                 </div>
             </div>
             
@@ -98,6 +99,7 @@
         </div>
     </div>
 
+    <!-- Shift Editing Modal -->
     <div id="shift-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
             <h3 id="modal-title" class="text-xl font-bold mb-6 text-center text-slate-800"></h3>
@@ -110,7 +112,6 @@
                 </div>
                 <div>
                     <label for="shift-end-time" class="block text-sm font-medium text-slate-700">שעת סיום:</label>
-
                     <input type="time" id="shift-end-time" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
                 </div>
             </div>
@@ -119,6 +120,7 @@
         </div>
     </div>
 
+    <!-- Employee Selection Modal -->
     <div id="employee-selection-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
             <h3 id="employee-selection-modal-title" class="text-xl font-bold mb-6 text-center text-slate-800">בחר עובדים</h3>
@@ -130,6 +132,7 @@
         </div>
     </div>
 
+    <!-- Vacation Modal -->
     <div id="vacation-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
             <h3 class="text-xl font-bold mb-6 text-center text-slate-800">הגדר חופשה לעובד</h3>
@@ -140,7 +143,7 @@
                         <option value="">בחר עובד</option>
                         <option value="מאור">מאור</option>
                         <option value="מור">מור</option>
-                        </select>
+                    </select>
                 </div>
                 <div>
                     <label for="vacation-start-date" class="block text-sm font-medium text-slate-700">תאריך התחלה:</label>
@@ -158,23 +161,47 @@
         </div>
     </div>
 
-<div id="differences-modal" class="hidden custom-modal">
-    <div id="differences-modal-content" class="custom-modal-content differences-modal-content relative">
-        <button id="custom-close-diff-modal-btn" class="absolute top-2 left-3 text-2xl font-bold text-gray-500 hover:text-gray-800">&times;</button>
-        
-        <h3 class="text-xl font-bold mb-4 text-slate-800">פערים בסידור עבודה (מאור)</h3>
-        
-        <div id="differences-display" class="text-sm text-slate-700 mb-4 overflow-x-auto"></div>
-        
-        <div id="differences-modal-status" class="text-center text-sm font-medium mb-4"></div>
-
-        <div class="flex justify-center gap-4">
-            <button id="import-selected-hilanet-shifts-btn" class="btn btn-purple">יבוא משמרות נבחרות למערכת שלי</button>
-            <button id="download-differences-btn" class="btn btn-green">הורד מסמך הבדלים (CSV)</button>
-            <button id="close-differences-modal-btn" class="btn bg-slate-200 text-slate-700 hover:bg-slate-300">סגור</button>
+    <!-- Differences Modal -->
+    <div id="differences-modal" class="hidden custom-modal">
+        <div id="differences-modal-content" class="custom-modal-content differences-modal-content relative">
+            <button id="custom-close-diff-modal-btn" class="absolute top-2 left-3 text-2xl font-bold text-gray-500 hover:text-gray-800">&times;</button>
+            <h3 class="text-xl font-bold mb-4 text-slate-800">פערים בסידור עבודה (מאור)</h3>
+            <div id="differences-display" class="text-sm text-slate-700 mb-4 overflow-x-auto"></div>
+            <div id="differences-modal-status" class="text-center text-sm font-medium mb-4"></div>
+            <div class="flex justify-center gap-4">
+                <button id="import-selected-hilanet-shifts-btn" class="btn btn-purple">יבוא משמרות נבחרות</button>
+                <button id="download-differences-btn" class="btn btn-green">הורד מסמך הבדלים (CSV)</button>
+                <button id="close-differences-modal-btn" class="btn bg-slate-200 text-slate-700 hover:bg-slate-300">סגור</button>
+            </div>
         </div>
     </div>
-</div>
+
+    <!-- **החלון הקופץ החדש להעלאת תמונה** -->
+    <div id="image-metadata-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 class="text-xl font-bold mb-6 text-center text-slate-800">פרטי סידור העבודה שבתמונה</h3>
+            <div class="space-y-4">
+                <div>
+                    <label for="image-employee-select" class="block text-sm font-medium text-slate-700">עובד:</label>
+                    <select id="image-employee-select" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
+                        <option value="מאור" selected>מאור</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="image-month-select" class="block text-sm font-medium text-slate-700">חודש:</label>
+                    <select id="image-month-select" class="mt-1 block w-full p-2 border border-slate-300 rounded-md"></select>
+                </div>
+                <div>
+                    <label for="image-year-select" class="block text-sm font-medium text-slate-700">שנה:</label>
+                    <select id="image-year-select" class="mt-1 block w-full p-2 border border-slate-300 rounded-md"></select>
+                </div>
+            </div>
+            <div class="flex justify-center gap-4 mt-8">
+                <button id="image-metadata-confirm-btn" class="btn btn-blue px-6 py-2">המשך לניתוח</button>
+                <button id="image-metadata-cancel-btn" class="btn bg-slate-200 text-slate-700 hover:bg-slate-300 px-6 py-2">ביטול</button>
+            </div>
+        </div>
+    </div>
 
     <script type="module" src="JS/main.js"></script>
 </body>
