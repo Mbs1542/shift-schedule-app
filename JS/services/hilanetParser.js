@@ -113,7 +113,7 @@ export async function callGeminiForShiftExtraction(imageDataBase64, month, year,
 }
 
 /**
- * Organizes the extracted shifts into a structured object.
+ * Organizes the extracted shifts from Gemini (PDF) into a structured object.
  */
 export function structureShifts(shifts, month, year, employeeName) {
     const structured = {};
@@ -122,15 +122,25 @@ export function structureShifts(shifts, month, year, employeeName) {
     shifts.forEach(shift => {
         if (!shift.day || !shift.entryTime || !shift.exitTime) return;
 
+        // **התיקון כאן: בדיקה והיפוך שעות במידת הצורך**
+        let entryTime = shift.entryTime;
+        let exitTime = shift.exitTime;
+
+        // Sanity check: if exit time is earlier than entry time, swap them
+        if (new Date(`1970-01-01T${exitTime}`) < new Date(`1970-01-01T${entryTime}`)) {
+            [entryTime, exitTime] = [exitTime, entryTime]; // Swap the times
+        }
+
         const dateString = `${year}-${String(month).padStart(2, '0')}-${String(shift.day).padStart(2, '0')}`;
-        const shiftType = parseInt(shift.entryTime.split(':')[0], 10) < 12 ? 'morning' : 'evening';
+        // Use the corrected entry time to determine shift type
+        const shiftType = parseInt(entryTime.split(':')[0], 10) < 12 ? 'morning' : 'evening';
         
         if (!structured[dateString]) structured[dateString] = {};
         
         structured[dateString][shiftType] = {
             employee: employeeName,
-            start: `${shift.entryTime}:00`,
-            end: `${shift.exitTime}:00`,
+            start: `${entryTime}:00`,
+            end: `${exitTime}:00`,
         };
     });
     return structured;
@@ -204,8 +214,10 @@ export function handleUploadHilanetBtnClick() {
     document.getElementById('upload-hilanet-input').click();
 }
 
+/**
+ * Parses XLSX data from Hilanet specifically for "מאור".
+ */
 export function parseHilanetXLSXForMaor(data) {
-    // This function remains unchanged.
     const shifts = {};
     let employeeName = "מאור";
     let month = -1, year = -1;
@@ -232,8 +244,15 @@ export function parseHilanetXLSXForMaor(data) {
             const times = row.filter(cell => typeof cell === 'string' && timePattern.test(cell));
 
             if (times.length >= 2) {
-                const startTime = times[0];
-                const endTime = times[1];
+                // **התיקון כאן: בדיקה והיפוך שעות במידת הצורך**
+                let startTime = times[0];
+                let endTime = times[1];
+
+                // Sanity check: if exit time is earlier than entry time, swap them
+                if (new Date(`1970-01-01T${endTime}`) < new Date(`1970-01-01T${startTime}`)) {
+                    [startTime, endTime] = [endTime, startTime]; // Swap the times
+                }
+
                 const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 const shiftType = parseInt(startTime.split(':')[0]) < 12 ? 'morning' : 'evening';
 
