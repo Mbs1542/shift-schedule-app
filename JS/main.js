@@ -464,6 +464,12 @@ function initializeAppLogic() {
         imageMetadataModal: document.getElementById('image-metadata-modal'),
         employeeSelectionModal: document.getElementById('employee-selection-modal'),
         employeeSelectionModalTitle: document.getElementById('employee-selection-modal-title'),
+        sendFridaySummaryBtn: document.getElementById('send-friday-summary-btn'),
+        fridaySummaryModal: document.getElementById('friday-summary-modal'),
+        summaryStartDateInput: document.getElementById('summary-start-date'),
+        summaryEndDateInput: document.getElementById('summary-end-date'),
+        summaryConfirmBtn: document.getElementById('summary-confirm-btn'),
+        summaryCancelBtn: document.getElementById('summary-cancel-btn'),
     };
 
     function loadGoogleApiScripts() {
@@ -501,6 +507,9 @@ function initializeAppLogic() {
     DOMElements.closeDifferencesModalBtn.addEventListener('click', closeDifferencesModal);
     DOMElements.customCloseDiffModalBtn.addEventListener('click', closeDifferencesModal);
     DOMElements.importSelectedHilanetShiftsBtn.addEventListener('click', handleImportSelectedHilanetShifts);
+    DOMElements.sendFridaySummaryBtn.addEventListener('click', showFridaySummaryModal);
+    DOMElements.summaryConfirmBtn.addEventListener('click', handleSendFridaySummary);
+    DOMElements.summaryCancelBtn.addEventListener('click', closeFridaySummaryModal);
     
     // Populate dropdowns
     EMPLOYEES.forEach(emp => {
@@ -518,6 +527,39 @@ function initializeAppLogic() {
     DOMElements.datePicker.value = getWeekId(today);
     loadGoogleApiScripts();
     // *** FIX: Removed checkSignInStatus() from here to prevent the race condition ***
+}
+function showFridaySummaryModal() {
+    if (gapi.client.getToken() === null) {
+        updateStatus('יש להתחבר עם חשבון Google.', 'info');
+        return;
+    }
+    // Set default dates to the current month
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+
+    DOMElements.summaryStartDateInput.value = firstDay;
+    DOMElements.summaryEndDateInput.value = lastDay;
+    DOMElements.fridaySummaryModal.classList.remove('hidden');
+}
+
+function closeFridaySummaryModal() {
+    DOMElements.fridaySummaryModal.classList.add('hidden');
+}
+
+async function handleSendFridaySummary() {
+    const startDate = DOMElements.summaryStartDateInput.value;
+    const endDate = DOMElements.summaryEndDateInput.value;
+
+    if (!startDate || !endDate) {
+        updateStatus('יש לבחור תאריכי התחלה וסיום.', 'info');
+        return;
+    }
+
+    closeFridaySummaryModal();
+
+    // This function will be created in the next step
+    await sendFridaySummaryEmail(startDate, endDate);
 }
 
 document.addEventListener('DOMContentLoaded', initializeAppLogic);

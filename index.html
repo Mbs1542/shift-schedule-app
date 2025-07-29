@@ -51,10 +51,10 @@
                     <a href="https://assuta.net.hilan.co.il/login" target="_blank" class="btn btn-orange">פתח אתר חילנט</a>
                     <input type="file" id="upload-hilanet-input" accept=".pdf, .xlsx, .xls" class="hidden">
                     <button id="upload-hilanet-btn" class="btn btn-purple">העלה קובץ מחילנט</button>
-                    <!-- **הכפתור החדש** -->
                     <input type="file" id="upload-image-input" accept="image/*" class="hidden">
                     <button id="upload-image-btn" class="btn btn-cyan">העלה תמונה של סידור 🖼️</button>
                     <button id="show-chart-btn" class="btn btn-green">הצג גרף משמרות 📊</button>
+                    <button id="send-friday-summary-btn" class="btn btn-purple">שלח סיכום ימי שישי</button>
                 </div>
             </div>
 
@@ -202,7 +202,25 @@
             </div>
         </div>
     </div>
-
     <script type="module" src="JS/main.js"></script>
+    <div id="friday-summary-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+        <h3 class="text-xl font-bold mb-6 text-center text-slate-800">בחירת טווח תאריכים לסיכום</h3>
+        <div class="space-y-4">
+            <div>
+                <label for="summary-start-date" class="block text-sm font-medium text-slate-700">מתאריך:</label>
+                <input type="date" id="summary-start-date" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
+            </div>
+            <div>
+                <label for="summary-end-date" class="block text-sm font-medium text-slate-700">עד תאריך:</label>
+                <input type="date" id="summary-end-date" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
+            </div>
+        </div>
+        <div class="flex justify-center gap-4 mt-8">
+            <button id="summary-confirm-btn" class="btn btn-blue px-6 py-2">שלח סיכום</button>
+            <button id="summary-cancel-btn" class="btn bg-slate-200 text-slate-700 hover:bg-slate-300 px-6 py-2">ביטול</button>
+        </div>
+    </div>
+</div>
 </body>
 </html>
