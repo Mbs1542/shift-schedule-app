@@ -14,6 +14,7 @@ export let DOMElements = {};
 
 // Application Data Stores
 export let allSchedules = {};
+export let allCreatedCalendarEvents = {}; 
 let currentHilanetShifts = {};
 let currentDifferences = [];
 let isProcessing = false;
