@@ -1,6 +1,3 @@
-// קובץ: JS/components/modal.js
-
-// **שינוי 1: סידור ועדכון פקודות הייבוא**
 import { DEFAULT_SHIFT_TIMES, EMPLOYEES, VACATION_EMPLOYEE_REPLACEMENT } from "../config.js";
 import { saveFullSchedule } from "../Api/googleApi.js";
 import { updateStatus, DOMElements, allSchedules } from "../main.js";
@@ -37,7 +34,6 @@ export function handleShiftCellClick(e) {
     DOMElements.shiftModal.dataset.day = day;
     DOMElements.shiftModal.dataset.shift = shift;
 
-    // **שינוי 2: סינון העובד המחליף מאפשרויות הבחירה הידניות**
     const availableEmployees = EMPLOYEES.filter(emp => emp !== VACATION_EMPLOYEE_REPLACEMENT);
     const options = availableEmployees.concat(['none']);
 
@@ -109,70 +105,77 @@ export async function handleModalSave() {
 export function closeModal() {
     DOMElements.shiftModal.classList.add('hidden');
 }
-/**
- * Displays a modal for selecting employees.
- * @param {Function} actionCallback - Function to call with selected employees.
- * @param {string} modalTitleText - Title for the modal.
- * @param {string[]} [preSelectedEmployees=[]] - Array of employee names to pre-select.
- * @param {boolean} [singleSelection=false] - If true, use radio buttons for single selection.
- * @param {string[]} [allowedEmployees=EMPLOYEES] - Subset of employees to display.
- */
+
 export function showEmployeeSelectionModal(actionCallback, modalTitleText, preSelectedEmployees = [], singleSelection = false, allowedEmployees = EMPLOYEES) {
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי לבצע פעולה זו.', 'info', false);
         return;
     }
-    DOMElements.employeeSelectionModalTitle.textContent = modalTitleText;
-    DOMElements.employeeCheckboxesContainer.innerHTML = '';
+    
+    // ** FIX: Check if the element exists before trying to use it **
+    if (DOMElements.employeeSelectionModalTitle) {
+        DOMElements.employeeSelectionModalTitle.textContent = modalTitleText;
+    }
 
-    allowedEmployees.forEach(employee => {
-        const div = document.createElement('div');
-        div.className = 'flex items-center';
-        const input = document.createElement('input');
-        input.type = singleSelection ? 'radio' : 'checkbox';
-        input.name = singleSelection ? 'selectedEmployee' : `employee-${employee}`;
-        input.id = `employee-${employee}`;
-        input.value = employee;
-        input.className = 'h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500';
-        if (preSelectedEmployees.includes(employee)) input.checked = true;
+    const container = document.getElementById('employee-checkboxes-container');
+    if(container) {
+        container.innerHTML = '';
 
-        const label = document.createElement('label');
-        label.htmlFor = `employee-${employee}`;
-        label.textContent = employee;
-        label.className = 'ml-2 text-slate-700';
+        allowedEmployees.forEach(employee => {
+            const div = document.createElement('div');
+            div.className = 'flex items-center';
+            const input = document.createElement('input');
+            input.type = singleSelection ? 'radio' : 'checkbox';
+            input.name = singleSelection ? 'selectedEmployee' : `employee-${employee}`;
+            input.id = `employee-${employee}`;
+            input.value = employee;
+            input.className = 'h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500';
+            if (preSelectedEmployees.includes(employee)) input.checked = true;
 
-        div.appendChild(input);
-        div.appendChild(label);
-        DOMElements.employeeCheckboxesContainer.appendChild(div);
-    });
+            const label = document.createElement('label');
+            label.htmlFor = `employee-${employee}`;
+            label.textContent = employee;
+            label.className = 'ml-2 text-slate-700';
 
-    const confirmBtn = DOMElements.employeeSelectionConfirmBtn;
-    const cancelBtn = DOMElements.employeeSelectionCancelBtn;
-    confirmBtn.replaceWith(confirmBtn.cloneNode(true));
-    cancelBtn.replaceWith(cancelBtn.cloneNode(true));
-    DOMElements.employeeSelectionConfirmBtn = document.getElementById('employee-selection-confirm-btn');
-    DOMElements.employeeSelectionCancelBtn = document.getElementById('employee-selection-cancel-btn');
+            div.appendChild(input);
+            div.appendChild(label);
+            container.appendChild(div);
+        });
 
-    DOMElements.employeeSelectionConfirmBtn.addEventListener('click', () => {
-        let selectedValues;
-        if (singleSelection) {
-            const selectedRadio = DOMElements.employeeCheckboxesContainer.querySelector('input[type="radio"]:checked');
-            selectedValues = selectedRadio ? [selectedRadio.value] : [];
-        } else {
-            selectedValues = Array.from(DOMElements.employeeCheckboxesContainer.querySelectorAll('input[type="checkbox"]:checked')).map(checkbox => checkbox.value);
-        }
-        closeEmployeeSelectionModal();
-        actionCallback(selectedValues);
-    });
-    DOMElements.employeeSelectionCancelBtn.addEventListener('click', closeEmployeeSelectionModal);
-    DOMElements.employeeSelectionModal.classList.remove('hidden');
+        const confirmBtn = document.getElementById('employee-selection-confirm-btn');
+        const cancelBtn = document.getElementById('employee-selection-cancel-btn');
+        
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+        
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+        newConfirmBtn.addEventListener('click', () => {
+            let selectedValues;
+            if (singleSelection) {
+                const selectedRadio = container.querySelector('input[type="radio"]:checked');
+                selectedValues = selectedRadio ? [selectedRadio.value] : [];
+            } else {
+                selectedValues = Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(checkbox => checkbox.value);
+            }
+            closeEmployeeSelectionModal();
+            actionCallback(selectedValues);
+        });
+        newCancelBtn.addEventListener('click', closeEmployeeSelectionModal);
+    }
+    
+    if (DOMElements.employeeSelectionModal) {
+        DOMElements.employeeSelectionModal.classList.remove('hidden');
+    }
 }
-/** Closes the employee selection modal. */
 
 export function closeEmployeeSelectionModal() {
-    DOMElements.employeeSelectionModal.classList.add('hidden');
+    if (DOMElements.employeeSelectionModal) {
+        DOMElements.employeeSelectionModal.classList.add('hidden');
+    }
 }
-/** Shows the vacation modal. */
+
 export function showVacationModal() {
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי לבצע פעולה זו.', 'info', false);
@@ -188,39 +191,43 @@ export function showVacationModal() {
     DOMElements.vacationEndDateInput.value = saturdayOfCurrentWeek.toISOString().split('T')[0];
     DOMElements.vacationModal.classList.remove('hidden');
 }
-/** Closes the vacation modal. */
+
 export function closeVacationModal() {
     DOMElements.vacationModal.classList.add('hidden');
 }
-/**
- * Displays the identified differences in a modal table with checkboxes for selection.
- * @param {Object[]} differences - Array of difference objects.
- */
+
 export function displayDifferences(differences) {
     const displayArea = DOMElements.differencesDisplay;
     const modal = DOMElements.differencesModal;
     const statusArea = document.getElementById('differences-modal-status');
+    if (!displayArea || !modal || !statusArea) return;
+
     displayArea.innerHTML = '';
 
-    // Handle the case where no differences are found
     if (differences.length === 0) {
         statusArea.textContent = 'לא נמצאו פערים בין סידור העבודה לקובץ חילנט.';
         displayArea.innerHTML = '<p class="text-center p-4">הכל מעודכן! ✅</p>';
-        DOMElements.importSelectedHilanetShiftsBtn.style.display = 'none';
-        DOMElements.downloadDifferencesBtn.style.display = 'none';
-        // Hide the "select all" checkbox if it exists
+        if (DOMElements.importSelectedHilanetShiftsBtn) DOMElements.importSelectedHilanetShiftsBtn.style.display = 'none';
+        
+        // ** FIX: Check if downloadDifferencesBtn exists before accessing its style **
+        const downloadBtn = document.getElementById('download-differences-btn');
+        if (downloadBtn) {
+            downloadBtn.style.display = 'none';
+        }
+
         const selectAllContainer = document.querySelector('.select-all-container');
         if (selectAllContainer) selectAllContainer.style.display = 'none';
-        modal.classList.remove('hidden'); // Show the modal to confirm no differences
+        modal.classList.remove('hidden');
         return;
     }
 
-    // Restore buttons and "select all" if they were hidden
-    DOMElements.importSelectedHilanetShiftsBtn.style.display = 'inline-block';
-    DOMElements.downloadDifferencesBtn.style.display = 'inline-block';
-    const selectAllContainer = document.querySelector('.select-all-container');
-    if (selectAllContainer) selectAllContainer.style.display = 'flex';
+    if (DOMElements.importSelectedHilanetShiftsBtn) DOMElements.importSelectedHilanetShiftsBtn.style.display = 'inline-block';
     
+    const downloadBtn = document.getElementById('download-differences-btn');
+    if (downloadBtn) {
+        downloadBtn.style.display = 'inline-block';
+    }
+
     statusArea.textContent = `נמצאו ${differences.length} פערים:`;
 
     const table = document.createElement('table');
@@ -246,37 +253,34 @@ export function displayDifferences(differences) {
     const tbody = table.querySelector('tbody');
     differences.forEach(diff => {
         const row = tbody.insertRow();
-        // --- THIS IS THE NEW STYLING LOGIC ---
         let rowClass = 'hover:bg-slate-100';
         let typeHebrew = '';
 
         switch(diff.type) {
-            case 'added': // Shift exists in Hilanet but not in our system
+            case 'added':
                 rowClass = 'bg-green-100 hover:bg-green-200';
                 typeHebrew = 'קיים בחילנט בלבד';
                 break;
-            case 'removed': // Shift exists in our system but not in Hilanet
+            case 'removed':
                 rowClass = 'bg-red-100 hover:bg-red-200';
                 typeHebrew = 'קיים במערכת בלבד';
                 break;
-            case 'changed': // Shift exists in both but has different times/employee
+            case 'changed':
                 rowClass = 'bg-yellow-100 hover:bg-yellow-200';
                 typeHebrew = 'שונה';
                 break;
         }
         row.className = rowClass;
-        // --- END OF NEW STYLING LOGIC ---
 
         const formatDetails = (shift) => shift ? `${shift.employee} (${shift.start.substring(0, 5)}-${shift.end.substring(0, 5)})` : '—';
         
         const gsDetails = formatDetails(diff.googleSheets);
         const hlDetails = formatDetails(diff.hilanet);
 
-        // Only allow importing for shifts that are 'added' or 'changed'
         const canImport = diff.type === 'added' || diff.type === 'changed';
         const checkboxHTML = canImport 
             ? `<input type="checkbox" class="difference-checkbox h-4 w-4 text-blue-600 rounded" data-diff-id="${diff.id}">`
-            : ''; // No checkbox for 'removed' shifts as there's nothing to import
+            : '';
 
         row.innerHTML = `
             <td class="p-2 border border-slate-300 text-center">${checkboxHTML}</td>
@@ -294,7 +298,6 @@ export function displayDifferences(differences) {
     if (selectAllCheckbox) {
         selectAllCheckbox.checked = false; 
         selectAllCheckbox.addEventListener('change', (e) => {
-            // Only check the checkboxes that are not disabled
             const checkboxes = document.querySelectorAll('.difference-checkbox');
             checkboxes.forEach(checkbox => {
                 checkbox.checked = e.target.checked;
@@ -304,6 +307,9 @@ export function displayDifferences(differences) {
 
     modal.classList.remove('hidden');
 }
+
 export function closeDifferencesModal() {
-    DOMElements.differencesModal.classList.add('hidden');
+    if (DOMElements.differencesModal) {
+        DOMElements.differencesModal.classList.add('hidden');
+    }
 }

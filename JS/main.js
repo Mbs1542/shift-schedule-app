@@ -6,7 +6,6 @@ import { EMPLOYEES, DAYS, VACATION_EMPLOYEE_REPLACEMENT, CLIENT_ID, SCOPES } fro
 import * as hilanetParser from './services/hilanetParser.js';
 import { formatDate, getWeekId, getWeekDates, showCustomConfirmation } from './utils.js';
 
-
 // --- Global Variables & State Management ---
 export let gapiInited = false;
 let gisInited = false;
@@ -149,6 +148,7 @@ function updateSigninStatus(isSignedIn) {
         DOMElements.signoutButton.classList.remove('hidden');
         DOMElements.appContent.classList.remove('hidden');
         updateStatus('מחובר בהצלחה!', 'success');
+        fetchData();
     } else {
         DOMElements.authorizeButton.classList.remove('hidden');
         DOMElements.signoutButton.classList.add('hidden');
@@ -232,8 +232,8 @@ async function handleGeminiSuggestShift() {
     const shiftType = DOMElements.shiftModal.dataset.shift;
 
     const currentWeekDate = new Date(weekId);
-    const previousWeekDate = new Date(currentWeekDate.setDate(currentWeekDate.getDate() - 7));
-    const previousWeekId = getWeekId(previousWeekDate.toISOString().split('T')[0]);
+    currentWeekDate.setDate(currentWeekDate.getDate() - 7);
+    const previousWeekId = getWeekId(currentWeekDate.toISOString().split('T')[0]);
     const lastFridayWorker = allSchedules[previousWeekId]?.['שישי']?.morning?.employee || 'אף אחד';
 
     const availableEmployees = EMPLOYEES.filter(e => e !== VACATION_EMPLOYEE_REPLACEMENT);
@@ -287,7 +287,7 @@ async function handleGeminiSuggestShift() {
     }
 }
 
-async function handleUpload(file, isPdf) {
+async function handleUpload(file, isPdf, inputElement) {
     if (isProcessing) return;
     setProcessingStatus(true);
     updateStatus(`מעבד קובץ ${isPdf ? 'PDF' : 'תמונה'}...`, 'loading', true);
@@ -316,15 +316,18 @@ async function handleUpload(file, isPdf) {
                     imagePromises.push(canvas.toDataURL('image/jpeg', 0.8));
                 }
             } else {
-                // For direct image upload, we need to get metadata from the user.
-                // This logic needs to be connected to a modal.
-                // For now, let's assume we have it for 'מאור' and current month/year.
                 employeeName = 'מאור'; // Placeholder
                 detectedMonth = new Date().getMonth() + 1; // Placeholder
                 detectedYear = new Date().getFullYear(); // Placeholder
                 const image = new Image();
-                image.src = URL.createObjectURL(file);
-                await new Promise(resolve => image.onload = resolve);
+                const objectURL = URL.createObjectURL(file);
+                image.src = objectURL;
+                await new Promise(resolve => {
+                    image.onload = () => {
+                        URL.revokeObjectURL(objectURL);
+                        resolve();
+                    };
+                });
                 const canvas = document.createElement('canvas');
                 canvas.width = image.width;
                 canvas.height = image.height;
@@ -353,11 +356,15 @@ async function handleUpload(file, isPdf) {
             displayAPIError(error, 'אירעה שגיאה בעיבוד הקובץ.');
         } finally {
             setProcessingStatus(false);
-            event.target.value = '';
+            if(inputElement) inputElement.value = ''; // Reset the input
         }
     };
-    fileReader.onerror = () => setProcessingStatus(false);
+    fileReader.onerror = () => {
+        setProcessingStatus(false);
+        if(inputElement) inputElement.value = '';
+    };
 }
+
 
 async function getAllGoogleSheetsShiftsForMaor() {
     const maorShifts = {};
@@ -450,6 +457,8 @@ function initializeAppLogic() {
         monthlySummaryChartCard: document.getElementById('monthly-summary-chart-card'),
         monthlySummaryEmployeeSelect: document.getElementById('monthly-summary-employee-select'),
         imageMetadataModal: document.getElementById('image-metadata-modal'),
+        employeeSelectionModal: document.getElementById('employee-selection-modal'),
+        employeeSelectionModalTitle: document.getElementById('employee-selection-modal-title'),
     };
 
     function loadGoogleApiScripts() {
@@ -481,9 +490,9 @@ function initializeAppLogic() {
     DOMElements.createCalendarEventsBtn.addEventListener('click', () => showEmployeeSelectionModal(handleCreateCalendarEvents, 'בחר עובדים ליצירת אירועי יומן'));
     DOMElements.deleteCalendarEventsBtn.addEventListener('click', () => showEmployeeSelectionModal(handleDeleteCalendarEvents, 'בחר עובדים למחיקת אירועי יומן'));
     DOMElements.uploadHilanetBtn.addEventListener('click', () => DOMElements.uploadHilanetInput.click());
-    DOMElements.uploadHilanetInput.addEventListener('change', (e) => handleUpload(e.target.files[0], true));
+    DOMElements.uploadHilanetInput.addEventListener('change', (e) => handleUpload(e.target.files[0], true, e.target));
     DOMElements.uploadImageBtn.addEventListener('click', () => DOMElements.uploadImageInput.click());
-    DOMElements.uploadImageInput.addEventListener('change', (e) => handleUpload(e.target.files[0], false));
+    DOMElements.uploadImageInput.addEventListener('change', (e) => handleUpload(e.target.files[0], false, e.target));
     DOMElements.closeDifferencesModalBtn.addEventListener('click', closeDifferencesModal);
     DOMElements.customCloseDiffModalBtn.addEventListener('click', closeDifferencesModal);
     DOMElements.importSelectedHilanetShiftsBtn.addEventListener('click', handleImportSelectedHilanetShifts);
