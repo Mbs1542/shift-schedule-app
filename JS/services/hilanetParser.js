@@ -1,6 +1,22 @@
 import { getWeekId, DAYS } from '../utils.js';
 
 /**
+ * Ensures a time string is always in HH:MM:SS format.
+ * @param {string} timeString - The time string to format (e.g., "7:00" or "13:00:00").
+ * @returns {string} Formatted time string (e.g., "07:00:00").
+ */
+function formatTimeToHHMMSS(timeString) {
+    if (!timeString || !timeString.includes(':')) {
+        return '00:00:00';
+    }
+    const parts = timeString.split(':');
+    const h = parts[0].padStart(2, '0');
+    const m = parts[1].padStart(2, '0');
+    const s = (parts[2] || '00').padStart(2, '0');
+    return `${h}:${m}:${s}`;
+}
+
+/**
  * Cleans text extracted from a PDF for metadata purposes.
  * @param {string} text - The raw text from the PDF.
  * @returns {string} Cleaned text ready for processing.
@@ -75,27 +91,15 @@ const PROMPT_TEMPLATES = {
         Your task is to extract daily work entries from the "כניסה" (entry) and "יציאה" (exit) columns.
 
         **CRITICAL RULES:**
-        1.  **Extract ONLY from "כניסה" and "יציאה" columns.** IGNORE all other time columns like "שעות תקן" or "סה"כ שעות".
-        2.  For each work day, extract:
+        1.  **"כניסה" is the START time. "יציאה" is the END time.** Ensure 'entryTime' comes from the "כניסה" column and 'exitTime' comes from the "יציאה" column.
+        2.  **Extract ONLY from "כניסה" and "יציאה" columns.** IGNORE all other time columns like "שעות תקן" or "סה"כ שעות".
+        3.  For each work day, extract:
             * "day": The day of the month (number).
             * "entryTime": Time from "כניסה" column (HH:MM format).
             * "exitTime": Time from "יציאה" column (HH:MM format).
             * "employee": The name of the employee, which is "${employeeName}".
-        3.  Ignore non-work days (like 'שבת', 'חופש', or empty rows).
-        4.  You MUST respond ONLY with a valid JSON array. If no shifts are found, return an empty array: [].`,
-
-    'hilanet-calendar': (employeeName, month, year) => `
-        You are an expert at extracting data from 'Hilanet' calendar summaries.
-        The image is a calendar for employee ${employeeName} for ${month}/${year}.
-        Task: Extract total hours for each day.
-
-        **RULES:**
-        1.  For each day with a time value (e.g., "9:00", "5:00"), extract:
-            * "day": The day of the month (number).
-            * "totalHours": The time value for that day.
-            * "employee": The name of the employee, which is "${employeeName}".
-        2.  Ignore days with no time value.
-        3.  You MUST respond ONLY with a valid JSON array. If no data, return [].`,
+        4.  Ignore non-work days (like 'שבת', 'חופש', or empty rows).
+        5.  You MUST respond ONLY with a valid JSON array. If no shifts are found, return an empty array: [].`,
 
     'generic': (month, year) => `
         You are an expert at extracting data from Hebrew work schedule images.
@@ -116,7 +120,6 @@ const PROMPT_TEMPLATES = {
 
 /**
  * Calls the Netlify serverless function to get shift data from an image.
- * This function is now much simpler.
  */
 export async function callGeminiForShiftExtraction(imageData, month, year, employeeName, contextType = 'hilanet-report') {
     const promptGenerator = PROMPT_TEMPLATES[contextType] || PROMPT_TEMPLATES['hilanet-report'];
@@ -136,7 +139,6 @@ export async function callGeminiForShiftExtraction(imageData, month, year, emplo
             throw new Error(errorData.error || 'Failed to communicate with the server.');
         }
 
-        // The serverless function now returns parsed JSON directly.
         const result = await response.json();
         return Array.isArray(result) ? result : [];
 
@@ -148,8 +150,7 @@ export async function callGeminiForShiftExtraction(imageData, month, year, emplo
 
 
 /**
- * Organizes shifts extracted by Gemini into a structured object.
- * This function now handles both the 'report' and 'generic' formats.
+ * Organizes shifts extracted by Gemini into a structured object, with a safeguard for swapped times.
  */
 export function structureShifts(shifts, month, year, employeeName) {
     const structured = {};
@@ -158,15 +159,23 @@ export function structureShifts(shifts, month, year, employeeName) {
     shifts.forEach(shift => {
         // Handle format from 'hilanet-report'
         if (shift.day && shift.entryTime && shift.exitTime) {
+            let entry = shift.entryTime;
+            let exit = shift.exitTime;
+
+            // Safeguard: if entry time is later than exit time, swap them.
+            if (new Date(`1970-01-01T${entry}`) > new Date(`1970-01-01T${exit}`)) {
+                [entry, exit] = [exit, entry]; // Swap the values
+            }
+            
             const dateString = `${year}-${String(month).padStart(2, '0')}-${String(shift.day).padStart(2, '0')}`;
-            const shiftType = parseInt(shift.entryTime.split(':')[0], 10) < 12 ? 'morning' : 'evening';
+            const shiftType = parseInt(entry.split(':')[0], 10) < 12 ? 'morning' : 'evening';
             
             if (!structured[dateString]) structured[dateString] = {};
             
             structured[dateString][shiftType] = {
                 employee: employeeName,
-                start: shift.entryTime.includes(':') ? `${shift.entryTime}:00`.substring(0, 8) : '00:00:00',
-                end: shift.exitTime.includes(':') ? `${shift.exitTime}:00`.substring(0, 8) : '00:00:00',
+                start: formatTimeToHHMMSS(entry),
+                end: formatTimeToHHMMSS(exit),
             };
         } 
         // Handle format from 'generic' schedule image
@@ -175,8 +184,8 @@ export function structureShifts(shifts, month, year, employeeName) {
              if (!structured[dateString]) structured[dateString] = {};
             structured[dateString][shift.shiftType] = {
                 employee: shift.employee,
-                start: shift.start ? `${shift.start}:00`.substring(0, 8) : '00:00:00',
-                end: shift.end ? `${shift.end}:00`.substring(0, 8) : '00:00:00',
+                start: shift.start ? formatTimeToHHMMSS(shift.start) : '00:00:00',
+                end: shift.end ? formatTimeToHHMMSS(shift.end) : '00:00:00',
             };
         }
     });
@@ -249,7 +258,3 @@ export function handleImportSelectedHilanetShifts(selectedDifferences, allSchedu
         importedCount: importedCount
     };
 }
-
-
-// This function is no longer needed as PDF parsing is now done via image conversion and AI.
-// We remove parseShiftsFromTextItems to avoid confusion.
