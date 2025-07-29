@@ -1,5 +1,6 @@
 import { SPREADSHEET_ID, SHEET_NAME, DAYS } from "../config.js";
-import { displayAPIError, allSchedules, DOMElements, updateStatus } from "../main.js";
+// *** שינוי: ייבוא המשתנה הגלובלי לשמירת האירועים ***
+import { displayAPIError, allSchedules, DOMElements, updateStatus, allCreatedCalendarEvents } from "../main.js";
 import { renderSchedule } from '../components/schedule.js';
 import { getWeekDates, getWeekId, createMessage, showCustomConfirmation } from "../utils.js"; 
 
@@ -80,9 +81,6 @@ export async function fetchData() {
     }
 }
 
-/**
- * Saves schedule data for a specific week to Google Sheets.
- */
 export async function saveFullSchedule(fullScheduleData) {
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי לשמור נתונים.', 'info', false);
@@ -120,7 +118,7 @@ export async function saveFullSchedule(fullScheduleData) {
             range: SHEET_NAME,
         });
 
-        if (dataToWrite.length > 1) { // Only write if there's more than just the header
+        if (dataToWrite.length > 1) {
             await gapi.client.sheets.spreadsheets.values.update({
                 spreadsheetId: SPREADSHEET_ID,
                 range: `${SHEET_NAME}!A1`,
@@ -136,9 +134,6 @@ export async function saveFullSchedule(fullScheduleData) {
     }
 }
 
-/**
- * Sends an email using the Gmail API.
- */
 export async function sendEmailWithGmailApi(to, subject, messageBody) {
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי לשלוח מייל.', 'info', false);
@@ -158,21 +153,22 @@ export async function sendEmailWithGmailApi(to, subject, messageBody) {
 }
 
 /**
- * Creates Google Calendar events for selected employees' shifts.
+ * --- שדרוג ---
+ * יוצר אירועים ביומן גוגל ושומר את המזהים שלהם.
  */
 export async function handleCreateCalendarEvents(selectedEmployees) {
     if (gapi.client.getToken() === null) {
-        updateStatus('יש להתחבר עם חשבון Google כדי לבצע פעולה זו.', 'info', false);
+        updateStatus('יש להתחבר עם חשבון Google.', 'info');
         return;
     }
     if (!selectedEmployees || selectedEmployees.length === 0) {
-        updateStatus('לא נבחרו עובדים ליצירת אירועי יומן.', 'info', false);
+        updateStatus('לא נבחרו עובדים.', 'info');
         return;
     }
     const weekId = getWeekId(DOMElements.datePicker.value);
     const scheduleDataForWeek = allSchedules[weekId];
-    if (!scheduleDataForWeek || Object.keys(scheduleDataForWeek).length === 0) {
-        updateStatus('אין נתוני סידור לשבוע זה.', 'info', false);
+    if (!scheduleDataForWeek) {
+        updateStatus('אין נתוני סידור לשבוע זה.', 'info');
         return;
     }
 
@@ -180,7 +176,7 @@ export async function handleCreateCalendarEvents(selectedEmployees) {
     
     const weekDates = getWeekDates(new Date(weekId));
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const promises = [];
+    const creationTasks = [];
 
     weekDates.forEach(date => {
         const dayName = DAYS[date.getDay()];
@@ -192,42 +188,117 @@ export async function handleCreateCalendarEvents(selectedEmployees) {
 
             const shiftDetails = dayData[shiftType];
             if (shiftDetails && shiftDetails.employee !== 'none' && selectedEmployees.includes(shiftDetails.employee)) {
+                
                 const event = {
                     'summary': `משמרת ${shiftType === 'morning' ? 'בוקר' : 'ערב'} (${shiftDetails.employee})`,
                     'location': 'אסותא',
                     'start': { 'dateTime': `${dateISO}T${shiftDetails.start}`, 'timeZone': timeZone },
                     'end': { 'dateTime': `${dateISO}T${shiftDetails.end}`, 'timeZone': timeZone }
                 };
-                promises.push(gapi.client.calendar.events.insert({
-                    'calendarId': 'primary',
-                    'resource': event
-                }));
+
+                // אריזת הבקשה עם המידע הנלווה כדי לדעת איזה אירוע נוצר
+                creationTasks.push({
+                    promise: gapi.client.calendar.events.insert({ 'calendarId': 'primary', 'resource': event }),
+                    shiftKey: `${weekId}-${dayName}-${shiftType}` // מפתח ייחודי למשמרת
+                });
             }
         });
     });
 
-    if (promises.length === 0) {
-        updateStatus('לא נמצאו משמרות לעובדים הנבחרים.', 'info', false);
+    if (creationTasks.length === 0) {
+        updateStatus('לא נמצאו משמרות לעובדים הנבחרים.', 'info');
         return;
     }
 
     try {
+        const promises = creationTasks.map(task => task.promise);
         const results = await Promise.all(promises);
+        
+        results.forEach((response, index) => {
+            const createdEvent = response.result;
+            if (createdEvent && createdEvent.id) {
+                const task = creationTasks[index];
+                // שמירת המזהה של האירוע שנוצר במפה הגלובלית
+                allCreatedCalendarEvents[task.shiftKey] = createdEvent.id;
+            }
+        });
+
+        console.log("אירועים שנוצרו ונשמרו:", allCreatedCalendarEvents);
         updateStatus(`נוצרו בהצלחה ${results.length} אירועי יומן!`, 'success');
+
     } catch (err) {
         displayAPIError(err, 'אירעו שגיאות ביצירת אירועי יומן.');
     }
 }
 
 /**
- * Deletes Google Calendar events for selected employees.
+ * --- מימוש מלא ---
+ * מוחק אירועים מיומן גוגל על בסיס המזהים השמורים.
  */
 export async function handleDeleteCalendarEvents(selectedEmployees) {
-    // This is a placeholder for a more complex implementation required for deletion.
-    showCustomConfirmation(
-        'מחיקת אירועים דורשת מימוש מתקדם יותר. האם תרצה להמשיך?',
-        () => {
-            updateStatus('פונקציונליות המחיקה עדיין בפיתוח.', 'info');
+    if (gapi.client.getToken() === null) {
+        updateStatus('יש להתחבר עם חשבון Google.', 'info');
+        return;
+    }
+    if (!selectedEmployees || selectedEmployees.length === 0) {
+        updateStatus('לא נבחרו עובדים.', 'info');
+        return;
+    }
+    
+    const weekId = getWeekId(DOMElements.datePicker.value);
+    const scheduleDataForWeek = allSchedules[weekId];
+    if (!scheduleDataForWeek) {
+        updateStatus('אין נתוני סידור לשבוע זה.', 'info');
+        return;
+    }
+
+    const deletionPromises = [];
+    const keysToDelete = [];
+
+    // מציאת כל האירועים שיש למחוק
+    Object.keys(scheduleDataForWeek).forEach(dayName => {
+        const dayData = scheduleDataForWeek[dayName];
+        ['morning', 'evening'].forEach(shiftType => {
+            const shiftDetails = dayData[shiftType];
+            if (shiftDetails && selectedEmployees.includes(shiftDetails.employee)) {
+                const shiftKey = `${weekId}-${dayName}-${shiftType}`;
+                const eventId = allCreatedCalendarEvents[shiftKey];
+
+                if (eventId) {
+                    deletionPromises.push(gapi.client.calendar.events.delete({
+                        'calendarId': 'primary',
+                        'eventId': eventId
+                    }));
+                    keysToDelete.push(shiftKey); // שמירת המפתח להסרה לאחר המחיקה
+                }
+            }
+        });
+    });
+
+    if (deletionPromises.length === 0) {
+        updateStatus('לא נמצאו אירועי יומן שמורים למחיקה עבור העובדים הנבחרים.', 'info');
+        return;
+    }
+
+    updateStatus(`מוחק ${deletionPromises.length} אירועים...`, 'loading', true);
+
+    try {
+        await Promise.all(deletionPromises);
+
+        // ניקוי המזהים מהמפה הגלובלית לאחר מחיקה מוצלחת
+        keysToDelete.forEach(key => {
+            delete allCreatedCalendarEvents[key];
+        });
+        
+        console.log("אירועים שנותרו לאחר המחיקה:", allCreatedCalendarEvents);
+        updateStatus(`נמחקו בהצלחה ${deletionPromises.length} אירועי יומן!`, 'success');
+
+    } catch (err) {
+        // שגיאה 410 (Gone) היא תקינה אם האירוע כבר נמחק
+        if (err.result && err.result.error.code === 410) {
+            updateStatus('חלק מהאירועים כבר נמחקו בעבר. הרשימה נוקתה.', 'info');
+        } else {
+            displayAPIError(err, 'אירעו שגיאות במחיקת אירועי יומן.');
         }
-    );
+    }
 }
