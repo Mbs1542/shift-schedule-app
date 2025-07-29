@@ -126,7 +126,11 @@ export function handleExportToExcel() {
     XLSX.writeFile(workbook, `סידור_עבודה_${weekId}.xlsx`);
     updateStatus('הסידור יוצא ל-Excel בהצלחה!', 'success', false);
 }
-/** Sends the current week's schedule as an email. */
+
+/**
+ * --- תיקון סופי ---
+ * שולח את הסידור הנוכחי במייל ללא עמודות שעות.
+ */
 export async function handleSendEmail() {
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי לשלוח מייל.', 'info', false);
@@ -137,10 +141,10 @@ export async function handleSendEmail() {
     const subject = `סידור עבודה לשבוע של ${formatDate(new Date(weekId))}`;
     let emailBodyContent = '';
 
-    if (DOMElements.scheduleTable && DOMElements.scheduleTable.querySelector('thead') && DOMElements.scheduleBody) {
+    if (DOMElements.scheduleTable && DOMElements.scheduleTitle) {
         emailBodyContent = `
             <div style="font-family: 'Rubik', sans-serif; direction: rtl; text-align: right; color: #333;">
-                <h2 style="color: #2563eb; font-size: 24px; margin-bottom: 20px;">סידור עבודה לשבוע של ${DOMElements.scheduleTitle.textContent.replace('סידור עבודה לשבוע של ', '')}</h2>
+                <h2 style="color: #2563eb; font-size: 24px; margin-bottom: 20px;">${DOMElements.scheduleTitle.textContent}</h2>
                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
                     <thead>
                         <tr style="background-color: #e2e8f0;">
@@ -162,13 +166,9 @@ export async function handleSendEmail() {
             const morningEmployee = (dayData.morning && dayData.morning.employee !== 'none') ? dayData.morning.employee : '—';
             const eveningEmployee = (dayData.evening && dayData.evening.employee !== 'none') ? dayData.evening.employee : '—';
 
-            let rowStyle = 'background-color: #ffffff;';
+            const rowStyle = 'background-color: #ffffff;';
             const cellStyle = 'padding: 10px; border: 1px solid #cbd5e1; text-align: right;';
             const specialDayCellStyle = 'padding: 10px; border: 1px solid #cbd5e1; text-align: center; background-color: #eff6ff; color: #1e40af; font-weight: bold;';
-
-            if (dayName === 'שישי' || dayName === 'שבת') {
-                rowStyle = 'background-color: #f0f8ff;';
-            }
 
             emailBodyContent += `<tr style="${rowStyle}">`;
             emailBodyContent += `<td style="${cellStyle} font-weight: bold;">${dayName}</td>`;
@@ -185,10 +185,12 @@ export async function handleSendEmail() {
             }
             emailBodyContent += `</tr>`;
         });
+
         emailBodyContent += `</tbody></table><p style="margin-top: 20px; font-size: 14px; color: #555;">בברכה,<br>מערכת סידור עבודה</p></div>`;
     } else {
-        emailBodyContent = `סידור עבודה לשבוע של ${DOMElements.scheduleTitle.textContent}. אנא בדוק את הסידור באפליקציה.`;
-        updateStatus('שגיאה: לא ניתן ליצור גוף מייל מלא.', 'error', false);
+        emailBodyContent = `סידור עבודה לשבוע של ${formatDate(new Date(weekId))}. אנא בדוק את הסידור באפליקציה.`;
+        updateStatus('שגיאה: לא ניתן היה ליצור את גוף המייל.', 'error', false);
     }
+    
     await sendEmailWithGmailApi(recipient, subject, emailBodyContent);
 }
