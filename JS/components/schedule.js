@@ -194,3 +194,52 @@ export async function handleSendEmail() {
     
     await sendEmailWithGmailApi(recipient, subject, emailBodyContent);
 }
+
+export async function sendFridaySummaryEmail(startDate, endDate) {
+    const recipient = 'maorbens@assuta.co.il';
+    const subject = `סיכום עבודה בימי שישי מתאריך ${formatDate(startDate)} עד ${formatDate(endDate)}`;
+    let fridays = [];
+
+    for (const weekId in allSchedules) {
+        const weekDates = getWeekDates(new Date(weekId));
+        weekDates.forEach(date => {
+            const dateString = date.toISOString().split('T')[0];
+            if (date.getDay() === 5 && dateString >= startDate && dateString <= endDate) {
+                const dayData = allSchedules[weekId]['שישי'];
+                const employee = (dayData && dayData.morning && dayData.morning.employee !== 'none') ? dayData.morning.employee : 'לא משובץ';
+                fridays.push({ date: formatDate(date), employee });
+            }
+        });
+    }
+
+    if (fridays.length === 0) {
+        updateStatus('לא נמצאו ימי שישי מאויישים בטווח התאריכים.', 'info');
+        return;
+    }
+
+    let emailBodyContent = `
+        <div style="font-family: 'Rubik', sans-serif; direction: rtl; text-align: right; color: #333;">
+            <h2 style="color: #2563eb; font-size: 24px; margin-bottom: 20px;">${subject}</h2>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <thead>
+                    <tr style="background-color: #e2e8f0;">
+                        <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: right;">תאריך</th>
+                        <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: right;">עובד</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    fridays.forEach(friday => {
+        emailBodyContent += `
+            <tr style="background-color: #ffffff;">
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">${friday.date}</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">${friday.employee}</td>
+            </tr>
+        `;
+    });
+
+    emailBodyContent += `</tbody></table><p style="margin-top: 20px; font-size: 14px; color: #555;">בברכה,<br>מערכת סידור עבודה</p></div>`;
+
+    await sendEmailWithGmailApi(recipient, subject, emailBodyContent);
+}
