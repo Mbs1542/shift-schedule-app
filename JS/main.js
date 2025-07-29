@@ -421,6 +421,7 @@ function initializeAppLogic() {
         scheduleBody: document.getElementById('schedule-body'),
         scheduleCard: document.getElementById('schedule-card'),
         scheduleTitle: document.getElementById('schedule-title'),
+        scheduleTable: document.getElementById('schedule-table'),
         downloadBtn: document.getElementById('download-excel-btn'),
         resetBtn: document.getElementById('reset-btn'),
         emailBtn: document.getElementById('send-email-btn'),
