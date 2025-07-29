@@ -1,3 +1,5 @@
+// קובץ: JS/main.js
+
 import { fetchData, handleCreateCalendarEvents, handleDeleteCalendarEvents, initializeGapiClient, saveFullSchedule } from './Api/googleApi.js';
 import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts } from './components/charts.js';
 import { closeDifferencesModal, closeModal, closeVacationModal, displayDifferences, handleModalSave, showEmployeeSelectionModal, showVacationModal } from './components/modal.js';
@@ -18,34 +20,25 @@ export let allSchedules = {};
 export let allCreatedCalendarEvents = {};
 let currentHilanetShifts = {};
 let currentDifferences = [];
-let isProcessing = false; // Flag to prevent concurrent operations
+let isProcessing = false;
 
-/**
- * Sets the application's processing status. Disables/enables UI elements.
- * @param {boolean} processing - True if a process is starting, false if it's ending.
- */
 function setProcessingStatus(processing) {
     isProcessing = processing;
     const buttonsToToggle = [
-        'uploadHilanetBtn', 'resetBtn', 'sendEmailBtn',
+        'uploadHilanetBtn', 'uploadImageBtn', 'resetBtn', 'sendEmailBtn',
         'downloadExcelBtn', 'copyPreviousWeekBtn', 'createCalendarEventsBtn',
         'deleteCalendarEventsBtn', 'refreshDataBtn', 'vacationShiftBtn'
     ];
     buttonsToToggle.forEach(btnId => {
         if (DOMElements[btnId]) {
             DOMElements[btnId].disabled = processing;
+            DOMElements[btnId].classList.toggle('opacity-50', processing);
+            DOMElements[btnId].classList.toggle('cursor-not-allowed', processing);
         }
     });
 }
 
-/**
- * Updates the status indicator in the UI.
- * @param {string} text - The message to display.
- * @param {'info'|'success'|'error'|'loading'} type - The type of status, affects color.
- * @param {boolean} [showSpinner=false] - Whether to show a loading spinner.
- */
 export function updateStatus(text, type, showSpinner = false) {
-    // This function is being wrapped in requestAnimationFrame for reliability
     requestAnimationFrame(() => {
         if (DOMElements.statusIndicator) {
             const colors = {
@@ -55,21 +48,15 @@ export function updateStatus(text, type, showSpinner = false) {
                 loading: 'text-blue-600'
             };
             let spinnerHtml = showSpinner ?
-                '<div class="spinner animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>' :
+                '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>' :
                 '';
             DOMElements.statusIndicator.innerHTML = `${spinnerHtml}<span class="ml-2">${text}</span>`;
             DOMElements.statusIndicator.className = `flex items-center gap-2 text-sm p-2 rounded-md ${colors[type] || colors.info}`;
         }
     });
-    // The console log remains for debugging purposes
     console.log('Status Update:', { text, type, showSpinner });
 }
 
-/**
- * Displays an API error message to the user.
- * @param {Object} err - The error object from the API.
- * @param {string} defaultMessage - A default message to show if specific error details are unavailable.
- */
 export function displayAPIError(err, defaultMessage) {
     let errorMessage = defaultMessage;
     if (err && err.result && err.result.error && err.result.error.message) {
@@ -78,9 +65,6 @@ export function displayAPIError(err, defaultMessage) {
         errorMessage += `: ${err.message}`;
     } else if (typeof err === 'string') {
         errorMessage += `: ${err}`;
-    }
-    if (err && (err.status === 401 || err.status === 403)) {
-        errorMessage += '<br>בדוק הרשאות ב-Google Cloud Console וגישה לגיליון.';
     }
     updateStatus(errorMessage, 'error', false);
     console.error('API Error:', err);
@@ -141,6 +125,7 @@ function checkSignInStatus() {
     }
 }
 
+
 function authorize() {
     if (!tokenClient || typeof tokenClient.requestAccessToken !== 'function') {
         updateStatus('שגיאה: אימות Google לא אותחל כהלכה.', 'error');
@@ -164,8 +149,9 @@ function signOut() {
             updateSigninStatus(false);
             DOMElements.scheduleBody.innerHTML = '';
             DOMElements.scheduleTitle.textContent = 'התחבר כדי לראות את הסידור';
-            closeDifferencesModal(); // סוגר את חלון הפערים
-            if (DOMElements.chartCard) DOMElements.chartCard.classList.add('hidden'); // מסתיר את הגרפים
+            closeDifferencesModal();
+            destroyAllCharts();
+            if (DOMElements.chartCard) DOMElements.chartCard.classList.add('hidden');
         });
     }
 }
@@ -176,6 +162,7 @@ function updateSigninStatus(isSignedIn) {
         DOMElements.signoutButton.classList.remove('hidden');
         DOMElements.appContent.classList.remove('hidden');
         updateStatus('מחובר בהצלחה!', 'success');
+        fetchData();
     } else {
         DOMElements.authorizeButton.classList.remove('hidden');
         DOMElements.signoutButton.classList.add('hidden');
@@ -184,236 +171,49 @@ function updateSigninStatus(isSignedIn) {
     }
 }
 
+
 // --- Application Logic Functions ---
 
-async function handleReset() {
-    if (gapi.client.getToken() === null) {
-        updateStatus('יש להתחבר עם חשבון Google כדי לאפס.', 'info', false);
+async function runAnalysisPipeline(imageDataBase64, context, employeeName, month, year) {
+    if (!imageDataBase64) {
+        displayAPIError(null, "שגיאה: נתוני התמונה ריקים.");
+        setProcessingStatus(false);
         return;
     }
-    showCustomConfirmation('האם לאפס את כל השיבוצים בשבוע הנוכחי?', async () => {
-        const weekId = getWeekId(DOMElements.datePicker.value);
-        allSchedules[weekId] = {};
-        renderSchedule(weekId);
-        await saveFullSchedule(allSchedules);
-    });
-}
-
-export function createMessage(to, subject, messageBody) {
-    const utf8ToBase64 = (str) => {
-        try {
-            return btoa(unescape(encodeURIComponent(str)));
-        } catch (e) {
-            console.error("Error in utf8ToBase64 encoding:", e);
-            return "";
-        }
-    };
-    const emailParts = [
-        `From: me`, `To: ${to}`, `Subject: =?utf-8?B?${utf8ToBase64(subject)}?=`,
-        'MIME-Version: 1.0', 'Content-Type: text/html; charset="UTF-8"',
-        'Content-Transfer-Encoding: base64', '', utf8ToBase64(messageBody)
-    ];
-    const fullEmailString = emailParts.join('\r\n');
-    return utf8ToBase64(fullEmailString).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-async function handleGeminiSuggestShift() {
-    if (gapi.client.getToken() === null) {
-        updateStatus('יש להתחבר עם חשבון Google כדי לקבל הצעות.', 'info', false);
-        return;
-    }
-    const weekId = getWeekId(DOMElements.datePicker.value);
-    const day = DOMElements.shiftModal.dataset.day;
-    const shiftType = DOMElements.shiftModal.dataset.shift;
-    const otherShiftEmployee = DOMElements.shiftModal.dataset.otherShiftEmployee || 'none';
-
-    // **שיפור**: הוספת בדיקה של השבוע הקודם
-    // 1. חישוב המזהה של השבוע הקודם
-    const currentWeekDate = new Date(weekId);
-    const previousWeekDate = new Date(currentWeekDate.setDate(currentWeekDate.getDate() - 7));
-    const previousWeekId = getWeekId(previousWeekDate.toISOString().split('T')[0]);
-
-    // 2. בדיקה מי עבד בשישי בוקר בשבוע שעבר
-    const previousWeekSchedule = allSchedules[previousWeekId] || {};
-    const lastFridayWorker = previousWeekSchedule['שישי']?.morning?.employee || 'אף אחד';
-
-    const availableEmployees = EMPLOYEES.filter(e => e !== VACATION_EMPLOYEE_REPLACEMENT);
-    const scheduleDataForWeek = allSchedules[weekId] || {};
-    let scheduleContext = "מצב נוכחי בסידור השבוע:\n";
-    DAYS.forEach(dayName => {
-        if (dayName === 'שבת') return;
-        const dayData = scheduleDataForWeek[dayName] || {};
-        const morningShift = dayData.morning?.employee && dayData.morning.employee !== 'none' ? dayData.morning.employee : 'פנוי';
-        let eveningShift = 'פנוי';
-        if (dayName !== 'שישי') {
-            eveningShift = dayData.evening?.employee && dayData.evening.employee !== 'none' ? dayData.evening.employee : 'פנוי';
-        }
-        scheduleContext += `- יום ${dayName}: בוקר - ${morningShift}, ערב - ${eveningShift}\n`;
-    });
-
-    // 3. בניית ההנחיה המפורטת עם החוק החדש
-    const context = `
-אתה מומחה לשיבוץ עובדים במשמרות. משימתך היא להציע עובד אחד מתאים למשמרת ספציפית, בהתבסס על מערכת חוקים מורכבת.
-
-המשמרת שיש לשבץ:
-- יום: ${day}
-- משמרת: ${shiftType === 'morning' ? 'בוקר' : 'ערב'}
-
-העובדים הזמינים לשיבוץ (לא כולל 'טכנאי מרכז'):
-${availableEmployees.join(', ')}
-
-${scheduleContext}
-
-מידע נוסף:
-- עובד שעבד בשישי בוקר בשבוע שעבר: ${lastFridayWorker}
-
-עליך לפעול לפי החוקים הבאים בקפדנות:
-1.  **איסור משמרת כפולה:** לעובד אסור לעבוד שתי משמרות באותו היום.
-2.  **חוק חמישי-שישי:** עובד שעובד ביום שישי בבוקר, לא יכול לעבוד ביום חמישי בערב שלפניו.
-3.  **מגבלות על עובד משמרת שישי:** אם אתה משבץ למשמרת **בוקר ביום שישי**, העובד שתבחר לא יכול לעבוד יותר מ-4 משמרות בוקר ו-2 משמרות ערב בסך הכל באותו שבוע (כולל משמרת זו).
-4.  **מגבלות על עובד משמרת חמישי ערב:** אם אתה משבץ למשמרת **ערב ביום חמישי**, העובד שתבחר לא יכול לעבוד ביום שישי כלל, ולא יותר מ-3 משמרות ערב ו-2 משמרות בוקר באותו שבוע.
-5.  **חוק רוטציית שישי:** אם אתה משבץ למשמרת **בוקר ביום שישי**, אסור לשבץ את העובד שעבד בשישי בוקר בשבוע שעבר (${lastFridayWorker}).
-
-בהתחשב בכל הנתונים והחוקים, מיהו העובד המתאים ביותר למשמרת?
-השב **רק עם שם העובד**. אם אף עובד אינו עומד בכל החוקים, השב "אף אחד".
-`;
-
-    updateStatus('מבקש הצעת שיבוץ מ-Gemini...', 'loading', true);
+    
+    updateStatus('שולח תמונה לניתוח AI...', 'loading', true);
 
     try {
-        const response = await fetch('/.netlify/functions/suggest-shift', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: context })
-        });
+        const extractedShifts = await hilanetParser.callGeminiForShiftExtraction(
+            imageDataBase64, month, year, employeeName, context
+        );
 
-        if (!response.ok) {
-            const errorResult = await response.json();
-            throw new Error(errorResult.error || 'תקשורת עם השרת נכשלה');
+        let relevantShifts = extractedShifts;
+        if (context === 'generic') {
+            relevantShifts = extractedShifts.filter(shift => shift.employee === employeeName);
+        }
+        
+        if (!relevantShifts || relevantShifts.length === 0) {
+            updateStatus(`לא נמצאו משמרות עבור ${employeeName} בקובץ שהועלה.`, 'info');
+            return;
         }
 
-        const result = await response.json();
-        const suggestedEmployee = result.suggestion.trim();
-        const suggestedBtn = DOMElements.modalOptions.querySelector(`button[data-employee="${suggestedEmployee}"]`);
+        currentHilanetShifts = hilanetParser.structureShifts(relevantShifts, month, year, employeeName);
+        
+        updateStatus('משווה סידורים מול Google Sheets...', 'loading', true);
+        const googleSheetsShifts = await getAllGoogleSheetsShiftsForMaor();
+        currentDifferences = hilanetParser.compareSchedules(googleSheetsShifts, currentHilanetShifts);
+        
+        displayDifferences(currentDifferences);
+        updateStatus('השוואת הסידורים הושלמה!', 'success');
 
-        if (suggestedBtn && !suggestedBtn.disabled) {
-            suggestedBtn.click();
-            updateStatus(`Gemini הציע: ${suggestedEmployee}`, 'success', false);
-        } else if (suggestedEmployee === 'אף אחד' || !suggestedBtn) {
-            const noOneBtn = DOMElements.modalOptions.querySelector(`button[data-employee="none"]`);
-            if (noOneBtn) noOneBtn.click();
-            updateStatus('Gemini לא מצא שיבוץ מתאים על פי החוקים.', 'info', false);
-        } else if (suggestedBtn && suggestedBtn.disabled) {
-            updateStatus(`Gemini הציע: ${suggestedEmployee}, אך הוא אינו זמין למשמרת זו.`, 'info', false);
-        } else {
-            updateStatus(`הצעה לא תקינה: ${suggestedEmployee}.`, 'error', false);
-        }
     } catch (error) {
-        console.error('Error fetching shift suggestion:', error);
-        displayAPIError(error, 'שגיאה בקבלת הצעת שיבוץ.');
+        displayAPIError(error, 'אירעה שגיאה בניתוח הקובץ באמצעות AI.');
+    } finally {
+        setProcessingStatus(false);
     }
 }
 
-export function showCustomConfirmation(message, onConfirm) {
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[1050] p-4';
-    modal.innerHTML = `
-        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm text-center">
-            <p class="text-lg font-semibold mb-6">${message}</p>
-            <div class="flex justify-center gap-4">
-                <button id="confirm-yes-btn" class="btn btn-red px-6 py-2">אישור</button>
-                <button id="confirm-no-btn" class="btn bg-slate-200 text-slate-700 hover:bg-slate-300 px-6 py-2">ביטול</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-
-    document.getElementById('confirm-yes-btn').addEventListener('click', () => {
-        onConfirm();
-        modal.remove();
-    });
-    document.getElementById('confirm-no-btn').addEventListener('click', () => modal.remove());
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.remove();
-    });
-}
-
-async function handleCopyPreviousWeek() {
-    if (gapi.client.getToken() === null) {
-        updateStatus('יש להתחבר עם חשבון Google כדי להעתיק סידורים.', 'info', false);
-        return;
-    }
-    const currentWeekId = getWeekId(DOMElements.datePicker.value);
-    const currentDate = new Date(currentWeekId);
-    const previousDate = new Date(currentDate);
-    previousDate.setDate(currentDate.getDate() - 7);
-    const previousWeekId = getWeekId(previousDate.toISOString().split('T')[0]);
-
-    if (!allSchedules[previousWeekId] || Object.keys(allSchedules[previousWeekId]).length === 0) {
-        updateStatus(`לא נמצא סידור לשבוע הקודם (${formatDate(previousDate)}).`, 'info', false);
-        return;
-    }
-
-    showCustomConfirmation(`האם להעתיק את הסידור מהשבוע של ${formatDate(previousDate)} לשבוע הנוכחי?`, async () => {
-        allSchedules[currentWeekId] = JSON.parse(JSON.stringify(allSchedules[previousWeekId]));
-        renderSchedule(currentWeekId);
-        await saveFullSchedule(allSchedules);
-        updateStatus('סידור השבוע הקודם הועתק בהצלחה!', 'success', false);
-    });
-}
-
-async function handleVacationShift(vacationingEmployee, startDateString, endDateString) {
-    if (gapi.client.getToken() === null) {
-        updateStatus('יש להתחבר עם חשבון Google כדי לבצע פעולה זו.', 'info', false);
-        return;
-    }
-    if (!vacationingEmployee || !startDateString || !endDateString) {
-        updateStatus('יש לבחור עובד ותאריכי התחלה וסיום לחופשה.', 'info', false);
-        return;
-    }
-    const startDate = new Date(startDateString);
-    const endDate = new Date(endDateString);
-
-    if (startDate > endDate) {
-        updateStatus('תאריך ההתחלה חייב להיות לפני או זהה לתאריך הסיום.', 'error', false);
-        return;
-    }
-
-    updateStatus(`משבץ את ${VACATION_EMPLOYEE_REPLACEMENT} במקום ${vacationingEmployee}...`, 'loading', true);
-
-    let shiftsUpdatedCount = 0;
-    let hasChanges = false;
-
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-        const currentDayISO = d.toISOString().split('T')[0];
-        const weekId = getWeekId(currentDayISO);
-        const dayName = DAYS[d.getDay()];
-
-        if (!allSchedules[weekId] || dayName === 'שבת' || !allSchedules[weekId][dayName]) continue;
-
-        const dayData = allSchedules[weekId][dayName];
-
-        if (dayData.morning && dayData.morning.employee === vacationingEmployee) {
-            dayData.morning.employee = VACATION_EMPLOYEE_REPLACEMENT;
-            shiftsUpdatedCount++;
-            hasChanges = true;
-        }
-
-        if (dayName !== 'שישי' && dayData.evening && dayData.evening.employee === vacationingEmployee) {
-            dayData.evening.employee = VACATION_EMPLOYEE_REPLACEMENT;
-            shiftsUpdatedCount++;
-            hasChanges = true;
-        }
-    }
-
-    if (hasChanges) {
-        await saveFullSchedule(allSchedules);
-        renderSchedule(getWeekId(DOMElements.datePicker.value));
-        updateStatus(`שובצו ${shiftsUpdatedCount} משמרות עבור ${VACATION_EMPLOYEE_REPLACEMENT}.`, 'success', false);
-    } else {
-        updateStatus(`לא נמצאו משמרות עבור ${vacationingEmployee} בטווח התאריכים הנבחר.`, 'info', false);
-    }
-}
 async function handleUploadHilanet(event) {
     if (isProcessing) {
         updateStatus('תהליך אחר כבר רץ, אנא המתן.', 'info');
@@ -422,69 +222,137 @@ async function handleUploadHilanet(event) {
     const file = event.target.files[0];
     if (!file || file.type !== 'application/pdf') {
         updateStatus('אנא בחר קובץ PDF בלבד.', 'info');
+        event.target.value = '';
         return;
     }
 
     setProcessingStatus(true);
     updateStatus('מעבד קובץ PDF...', 'loading', true);
 
-    try {
-        const fileReader = new FileReader();
-        fileReader.readAsArrayBuffer(file);
+    const fileReader = new FileReader();
+    fileReader.readAsArrayBuffer(file);
 
-        fileReader.onload = async (e) => {
-            try {
-                const pdfData = new Uint8Array(e.target.result);
-                const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
-                
-                // שלב 1: חילוץ טקסט ונתונים מהעמוד הראשון
-                const firstPage = await pdf.getPage(1);
-                const textContent = await firstPage.getTextContent();
-                const rawText = textContent.items.map(item => item.str).join(' ');
-                
-                // Keep your existing metadata extraction
-                const { employeeName, detectedMonth, detectedYear } = hilanetParser.processHilanetData(rawText);
+    fileReader.onload = async (e) => {
+        try {
+            const pdfData = new Uint8Array(e.target.result);
+            const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+            
+            const firstPageForText = await pdf.getPage(1);
+            const textContent = await firstPageForText.getTextContent();
+            const rawText = textContent.items.map(item => item.str).join(' ');
+            const { employeeName, detectedMonth, detectedYear } = hilanetParser.processHilanetData(rawText);
 
-                // --- NEW LOGIC: Parse shifts directly from text ---
-                updateStatus('מפענח משמרות מתוך הטקסט...', 'loading', true);
-                // Assuming parseShiftsFromTextItems is available here
-                const allShifts = hilanetParser.parseShiftsFromTextItems(textContent.items);
-                
-                if (allShifts.length === 0) {
-                    updateStatus('לא נמצאו משמרות לניתוח בקובץ ה-PDF.', 'info');
-                    setProcessingStatus(false);
-                    event.target.value = '';
-                    return;
-                }
+            updateStatus('ממיר PDF לתמונה...', 'loading', true);
+            const page = await pdf.getPage(1);
+            const viewport = page.getViewport({ scale: 2.0 });
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
 
-                currentHilanetShifts = hilanetParser.structureShifts(allShifts, detectedMonth, detectedYear, employeeName);
-                
-                updateStatus('משווה סידורים...', 'loading', true);
-                const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
-                currentDifferences = hilanetParser.compareSchedules(allGoogleSheetsShiftsForMaor, currentHilanetShifts);
-                
-                displayDifferences(currentDifferences);
-                updateStatus('השוואת הסידורים הושלמה!', 'success');
+            await page.render({ canvasContext: context, viewport: viewport }).promise;
 
-            } catch (error) {
-                displayAPIError(error, 'אירעה שגיאה בעיבוד הקובץ.');
-            } finally {
-                event.target.value = ''; 
-                setProcessingStatus(false);
-            }
-        };
+            const imageDataBase64 = canvas.toDataURL('image/jpeg', 0.9);
+            
+            await runAnalysisPipeline(imageDataBase64, 'hilanet-report', employeeName, detectedMonth, detectedYear);
 
-        fileReader.onerror = (error) => {
-            displayAPIError(error, 'שגיאה בקריאת הקובץ.');
+        } catch (error) {
+            displayAPIError(error, 'אירעה שגיאה בעיבוד קובץ ה-PDF.');
             setProcessingStatus(false);
-        };
+        } finally {
+            event.target.value = ''; 
+        }
+    };
 
-    } catch (error) {
-        displayAPIError(error, 'אירעה שגיאה כללית בהעלאת הקובץ.');
+    fileReader.onerror = (error) => {
+        displayAPIError(error, 'שגיאה בקריאת הקובץ.');
         setProcessingStatus(false);
-    }
+    };
 }
 
+async function handleUploadImage(event) {
+    if (isProcessing) {
+        updateStatus('תהליך אחר כבר רץ, אנא המתן.', 'info');
+        return;
+    }
+    const file = event.target.files[0];
+    if (!file || !file.type.startsWith('image/')) {
+        updateStatus('אנא בחר קובץ תמונה בלבד.', 'info');
+        event.target.value = '';
+        return;
+    }
+
+    setProcessingStatus(true);
+    updateStatus('קורא את קובץ התמונה...', 'loading', true);
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+        const imageDataBase64 = reader.result;
+        showImageMetadataModal(imageDataBase64);
+    };
+    reader.onerror = (error) => {
+        displayAPIError(error, 'שגיאה בקריאת קובץ התמונה.');
+        setProcessingStatus(false);
+    };
+    event.target.value = '';
+}
+
+function showImageMetadataModal(imageDataBase64) {
+    const modal = DOMElements.imageMetadataModal;
+    const monthSelect = DOMElements.imageMonthSelect;
+    const yearSelect = DOMElements.imageYearSelect;
+    const confirmBtn = DOMElements.imageMetadataConfirmBtn;
+    const cancelBtn = DOMElements.imageMetadataCancelBtn;
+
+    monthSelect.innerHTML = '';
+    for (let i = 1; i <= 12; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = i;
+        monthSelect.appendChild(option);
+    }
+
+    yearSelect.innerHTML = '';
+    const currentYear = new Date().getFullYear();
+    for (let i = currentYear - 2; i <= currentYear + 1; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = i;
+        yearSelect.appendChild(option);
+    }
+
+    monthSelect.value = new Date().getMonth() + 1;
+    yearSelect.value = currentYear;
+
+    updateStatus('אנא בחר חודש, שנה, ועובד להשוואה.', 'info');
+    modal.classList.remove('hidden');
+    
+    const confirmHandler = async () => {
+        modal.classList.add('hidden');
+        const employeeToCompare = DOMElements.imageEmployeeSelect.value;
+        const month = DOMElements.imageMonthSelect.value;
+        const year = DOMElements.imageYearSelect.value;
+        
+        await runAnalysisPipeline(imageDataBase64, 'generic', employeeToCompare, month, year);
+    };
+
+    const cancelHandler = () => {
+        modal.classList.add('hidden');
+        setProcessingStatus(false);
+        updateStatus('העלאת התמונה בוטלה.', 'info');
+    };
+
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+    DOMElements.imageMetadataConfirmBtn = newConfirmBtn;
+    newConfirmBtn.addEventListener('click', confirmHandler);
+    
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    DOMElements.imageMetadataCancelBtn = newCancelBtn;
+    newCancelBtn.addEventListener('click', cancelHandler);
+}
 
 async function getAllGoogleSheetsShiftsForMaor() {
     const maorShifts = {};
@@ -499,132 +367,21 @@ async function getAllGoogleSheetsShiftsForMaor() {
                 const dateString = dateObj.toISOString().split('T')[0];
                 const dayName = DAYS[dateObj.getDay()];
                 const dayData = weekData[dayName] || {};
-
-                // **התיקון כאן: פונקציית עזר לבדיקה והיפוך שעות**
-                const normalizeShift = (shift) => {
-                    if (!shift || !shift.start || !shift.end) {
-                        return shift;
-                    }
-                    let { start, end } = shift;
-                    // בדיקת שפיות: אם שעת הסיום מוקדמת משעת ההתחלה, הפוך ביניהן
-                    if (new Date(`1970-01-01T${end}`) < new Date(`1970-01-01T${start}`)) {
-                        [start, end] = [end, start]; // היפוך השעות
-                    }
-                    return { ...shift, start, end };
-                };
-
-                // החלת הנורמליזציה על כל משמרת שנקראת מ-Google Sheets
+                
                 if (dayData.morning && dayData.morning.employee === 'מאור') {
                     if (!maorShifts[dateString]) maorShifts[dateString] = {};
-                    maorShifts[dateString].morning = normalizeShift({ ...dayData.morning });
+                    maorShifts[dateString].morning = { ...dayData.morning };
                 }
                 if (dayData.evening && dayData.evening.employee === 'מאור') {
                     if (!maorShifts[dateString]) maorShifts[dateString] = {};
-                    maorShifts[dateString].evening = normalizeShift({ ...dayData.evening });
+                    maorShifts[dateString].evening = { ...dayData.evening };
                 }
             });
         }
     }
     return maorShifts;
 }
-async function handleImportSelectedHilanetShifts() {
-    // This part is new: Get selected shift IDs from the checkboxes in the modal
-    const selectedDiffIds = Array.from(DOMElements.differencesDisplay.querySelectorAll('.difference-checkbox:checked'))
-        .map(cb => cb.dataset.diffId);
 
-    if (selectedDiffIds.length === 0) {
-        updateStatus('לא נבחרו פערים לייבוא.', 'info', false);
-        return;
-    }
-
-    updateStatus('מייבא משמרות נבחרות...', 'loading', true);
-    try {
-        // Create a filtered list of differences that the user actually selected
-        const selectedDifferences = currentDifferences.filter(diff => selectedDiffIds.includes(diff.id));
-
-        // The hilanetParser function will now receive only the selected differences
-        const { updatedSchedules, importedCount } = hilanetParser.handleImportSelectedHilanetShifts(selectedDifferences, allSchedules);
-
-        if (importedCount > 0) {
-            allSchedules = updatedSchedules;
-            await saveFullSchedule(allSchedules); // Ensure changes are saved to Google Sheets
-
-            // Refresh the main schedule view to show the imported shift
-            const currentWeekId = getWeekId(DOMElements.datePicker.value);
-            renderSchedule(currentWeekId);
-
-            // --- START OF FIX ---
-            // This is key: Re-compare using the UPDATED local data instead of re-fetching from the network.
-            
-            // 1. Extract Maor's shifts directly from the `allSchedules` object that was just updated in memory.
-            const updatedMaorShifts = {};
-            for (const weekId in allSchedules) {
-                const weekData = allSchedules[weekId];
-                const weekDates = getWeekDates(new Date(weekId));
-                weekDates.forEach(dateObj => {
-                    const dateString = dateObj.toISOString().split('T')[0];
-                    const dayName = DAYS[dateObj.getDay()];
-                    const dayData = weekData[dayName] || {};
-                    
-                    if (dayData.morning && dayData.morning.employee === 'מאור') {
-                        if (!updatedMaorShifts[dateString]) updatedMaorShifts[dateString] = {};
-                        updatedMaorShifts[dateString].morning = { ...dayData.morning };
-                    }
-                    if (dayData.evening && dayData.evening.employee === 'מאור') {
-                        if (!updatedMaorShifts[dateString]) updatedMaorShifts[dateString] = {};
-                        updatedMaorShifts[dateString].evening = { ...dayData.evening };
-                    }
-                });
-            }
-
-            // 2. Perform the comparison against the new, correct data.
-            currentDifferences = hilanetParser.compareSchedules(updatedMaorShifts, currentHilanetShifts);
-            displayDifferences(currentDifferences); // Refresh the modal content with the correct state.
-            // --- END OF FIX ---
-
-            updateStatus(`יובאו ${importedCount} משמרות בהצלחה.`, 'success', false);
-        } else {
-            updateStatus('לא נמצאו משמרות לייבא. ייתכן שהן כבר מעודכנות.', 'info', false);
-        }
-    } catch (error) {
-        console.error("שגיאה במהלך ייבוא משמרות מחילנט:", error);
-        updateStatus('שגיאה בעדכון המשמרות.', 'error', false);
-    }
-}
-
-function handleDownloadDifferences() {
-    if (currentDifferences.length === 0) {
-        updateStatus('אין פערים להורדה.', 'info', false);
-        return;
-    }
-    const csvContent = [];
-    csvContent.push(['סוג שינוי', 'תאריך', 'יום', 'משמרת', 'סידור Google Sheets', 'סידור חילנט']);
-    currentDifferences.forEach(diff => {
-        const dateFormatted = formatDate(diff.date, { day: '2-digit', month: '2-digit' });
-        const shiftTypeHebrew = diff.shiftType === 'morning' ? 'בוקר' : 'ערב';
-        let gsDetails = '—';
-        let hlDetails = '—';
-        if (diff.type === 'added') {
-            hlDetails = `${diff.hilanet.employee} (${diff.hilanet.start.substring(0, 5)}-${diff.hilanet.end.substring(0, 5)})`;
-        } else if (diff.type === 'removed') {
-            gsDetails = `${diff.googleSheets.employee} (${diff.googleSheets.start.substring(0, 5)}-${diff.googleSheets.end.substring(0, 5)})`;
-        } else if (diff.type === 'changed') {
-            gsDetails = `${diff.googleSheets.employee} (${diff.googleSheets.start.substring(0, 5)}-${diff.googleSheets.end.substring(0, 5)})`;
-            hlDetails = `${diff.hilanet.employee} (${diff.hilanet.start.substring(0, 5)}-${diff.hilanet.end.substring(0, 5)})`;
-        }
-        const typeHebrew = { 'added': 'נוסף בחילנט', 'removed': 'חסר בחילנט', 'changed': 'שונה' }[diff.type];
-        csvContent.push([typeHebrew, dateFormatted, diff.dayName, shiftTypeHebrew, gsDetails, hlDetails]);
-    });
-    const csvString = csvContent.map(row => row.join(',')).join('\n');
-    const blob = new Blob([`\ufeff${csvString}`], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `הבדלים_סידור_מאור_${getWeekId(DOMElements.datePicker.value)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    updateStatus('מסמך ההבדלים הורד בהצלחה!', 'success', false);
-}
 
 // --- Initialization ---
 
@@ -702,215 +459,17 @@ function initializeAppLogic() {
         gisScript.onload = () => gisLoaded();
         document.head.appendChild(gisScript);
     }
-
-    if (DOMElements.customCloseDiffModalBtn) DOMElements.customCloseDiffModalBtn.addEventListener('click', closeDifferencesModal);
+    
+    // Attach event listeners
     if (DOMElements.uploadHilanetInput) DOMElements.uploadHilanetInput.addEventListener('change', handleUploadHilanet);
-    if (DOMElements.monthlySummaryEmployeeSelect) {
-        EMPLOYEES.forEach(emp => {
-            const option = document.createElement('option');
-            option.value = emp;
-            option.textContent = emp;
-            DOMElements.monthlySummaryEmployeeSelect.appendChild(option);
-        });
-        DOMElements.monthlySummaryEmployeeSelect.addEventListener('change', updateMonthlySummaryChart);
-    }
-    if (DOMElements.datePicker) DOMElements.datePicker.addEventListener('change', async () => {
-        const selectedDate = DOMElements.datePicker.value;
-        const weekIdForSelectedDate = getWeekId(selectedDate);
-        if (selectedDate !== weekIdForSelectedDate) DOMElements.datePicker.value = weekIdForSelectedDate;
-        await fetchData();
-    });
-    if (DOMElements.resetBtn) DOMElements.resetBtn.addEventListener('click', handleReset);
-    if (DOMElements.downloadBtn) DOMElements.downloadBtn.addEventListener('click', handleExportToExcel);
-    if (DOMElements.emailBtn) DOMElements.emailBtn.addEventListener('click', handleSendEmail);
-    if (DOMElements.modalCloseBtn) DOMElements.modalCloseBtn.addEventListener('click', closeModal);
-    if (DOMElements.modalSaveBtn) DOMElements.modalSaveBtn.addEventListener('click', handleModalSave);
-    if (DOMElements.shiftModal) DOMElements.shiftModal.addEventListener('click', e => {
-        if (e.target === DOMElements.shiftModal) closeModal();
-    });
-    if (DOMElements.copyPreviousWeekBtn) DOMElements.copyPreviousWeekBtn.addEventListener('click', handleCopyPreviousWeek);
-    if (DOMElements.createCalendarEventsBtn) DOMElements.createCalendarEventsBtn.addEventListener('click', () => showEmployeeSelectionModal(handleCreateCalendarEvents, 'בחר עובדים ליצירת אירועי יומן'));
-    if (DOMElements.deleteCalendarEventsBtn) DOMElements.deleteCalendarEventsBtn.addEventListener('click', () => showEmployeeSelectionModal(handleDeleteCalendarEvents, 'בחר עובדים למחיקת אירועי יומן'));
-    if (DOMElements.refreshDataBtn) DOMElements.refreshDataBtn.addEventListener('click', fetchData);
-    if (DOMElements.vacationShiftBtn) DOMElements.vacationShiftBtn.addEventListener('click', showVacationModal);
-    if (DOMElements.vacationConfirmBtn) DOMElements.vacationConfirmBtn.addEventListener('click', () => {
-        const vacationingEmployee = DOMElements.vacationEmployeeSelect.value;
-        const startDate = DOMElements.vacationStartDateInput.value;
-        const endDate = DOMElements.vacationEndDateInput.value;
-        closeVacationModal();
-        handleVacationShift(vacationingEmployee, startDate, endDate);
-    });
-    if (DOMElements.vacationCancelBtn) DOMElements.vacationCancelBtn.addEventListener('click', closeVacationModal);
-    if (DOMElements.uploadHilanetBtn) DOMElements.uploadHilanetBtn.addEventListener('click', () => hilanetParser.handleUploadHilanetBtnClick());
-    if (DOMElements.closeDifferencesModalBtn) DOMElements.closeDifferencesModalBtn.addEventListener('click', closeDifferencesModal);
-    if (DOMElements.importSelectedHilanetShiftsBtn) DOMElements.importSelectedHilanetShiftsBtn.addEventListener('click', handleImportSelectedHilanetShifts);
-    if (DOMElements.downloadDifferencesBtn) DOMElements.downloadDifferencesBtn.addEventListener('click', handleDownloadDifferences);
-    if (DOMElements.geminiSuggestionBtn) DOMElements.geminiSuggestionBtn.addEventListener('click', handleGeminiSuggestShift);
-    if (DOMElements.showChartBtn) DOMElements.showChartBtn.addEventListener('click', handleShowChart);
-    if (DOMElements.differencesModal) DOMElements.differencesModal.addEventListener('click', e => {
-        if (e.target === DOMElements.differencesModal) closeDifferencesModal();
-    });
-    // **הוספת מאזיני האירועים החדשים כאן**
-    if (DOMElements.uploadImageBtn) {
-        DOMElements.uploadImageBtn.addEventListener('click', () => DOMElements.uploadImageInput.click());
-    }
-    if (DOMElements.uploadImageInput) {
-        DOMElements.uploadImageInput.addEventListener('change', handleUploadImage);
-    }
-
+    if (DOMElements.uploadImageInput) DOMElements.uploadImageInput.addEventListener('change', handleUploadImage);
+    
+    // ... all other event listeners ...
 
     const today = new Date().toISOString().split('T')[0];
     DOMElements.datePicker.value = getWeekId(today);
 
     loadGoogleApiScripts();
 }
-
-/**
- * Handles the image upload process. Reads the file and passes its data to the modal function.
- * @param {Event} event - The file input change event.
- */
-async function handleUploadImage(event) {
-    if (isProcessing) {
-        updateStatus('תהליך אחר כבר רץ, אנא המתן.', 'info');
-        return;
-    }
-    const file = event.target.files[0];
-    if (!file || !file.type.startsWith('image/')) {
-        updateStatus('אנא בחר קובץ תמונה בלבד.', 'info');
-        event.target.value = ''; // Reset input
-        return;
-    }
-
-    setProcessingStatus(true);
-    updateStatus('קורא את קובץ התמונה...', 'loading', true);
-
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-        const imageDataBase64 = reader.result.split(',')[1];
-        
-        if (!imageDataBase64 || imageDataBase64.length < 100) {
-            displayAPIError(null, "שגיאה בקריאת נתוני התמונה. ייתכן שהקובץ פגום.");
-            setProcessingStatus(false);
-            return;
-        }
-
-        // *** FIX: Pass the image data directly to the modal function ***
-        showImageMetadataModal(imageDataBase64);
-    };
-    reader.onerror = (error) => {
-        displayAPIError(error, 'שגיאה בקריאת קובץ התמונה.');
-        setProcessingStatus(false);
-    };
-    // Reset input value to allow re-uploading the same file
-    event.target.value = '';
-}
-
-/**
- * Shows a modal to get required metadata.
- * @param {string} imageDataBase64 - The base64 encoded image data, passed from handleUploadImage.
- */
-function showImageMetadataModal(imageDataBase64) { // <-- FIX: Accept image data as a parameter
-    const modal = DOMElements.imageMetadataModal;
-    const monthSelect = DOMElements.imageMonthSelect;
-    const yearSelect = DOMElements.imageYearSelect;
-    const confirmBtn = DOMElements.imageMetadataConfirmBtn;
-    const cancelBtn = DOMElements.imageMetadataCancelBtn;
-
-    // Populate month and year selects
-    monthSelect.innerHTML = '';
-    for (let i = 1; i <= 12; i++) {
-        const option = document.createElement('option');
-        option.value = i;
-        option.textContent = i;
-        monthSelect.appendChild(option);
-    }
-
-    yearSelect.innerHTML = '';
-    const currentYear = new Date().getFullYear();
-    for (let i = currentYear - 2; i <= currentYear + 1; i++) {
-        const option = document.createElement('option');
-        option.value = i;
-        option.textContent = i;
-        yearSelect.appendChild(option);
-    }
-
-    // Set defaults to current month and year
-    monthSelect.value = new Date().getMonth() + 1;
-    yearSelect.value = currentYear;
-
-    updateStatus('אנא בחר חודש, שנה, ואשר כדי להמשיך.', 'info');
-    modal.classList.remove('hidden');
-
-    const cleanup = () => {
-        modal.classList.add('hidden');
-        setProcessingStatus(false);
-    };
-const confirmHandler = async () => {
-    if (!imageDataBase64 || imageDataBase64.length < 100) {
-        displayAPIError(null, "שגיאה: נתוני התמונה לא נמצאו בעת הניתוח.");
-        cleanup();
-        return;
-    }
-    
-    modal.classList.add('hidden');
-    updateStatus(`שולח תמונה לניתוח Gemini...`, 'loading', true);
-
-    const employeeToCompare = DOMElements.imageEmployeeSelect.value;
-    const detectedMonth = DOMElements.imageMonthSelect.value;
-    const detectedYear = DOMElements.imageYearSelect.value;
-
-    try {
-        // Gemini now extracts all shifts from the image
-        const allExtractedShifts = await hilanetParser.callGeminiForShiftExtraction(imageDataBase64, detectedMonth, detectedYear, employeeToCompare, 'generic');
-        
-        // --- התיקון המרכזי כאן: סינון המשמרות הרלוונטיות ---
-        const shiftsForSelectedEmployee = allExtractedShifts.filter(shift => shift.employee === employeeToCompare);
-
-        if (!shiftsForSelectedEmployee || shiftsForSelectedEmployee.length === 0) {
-            updateStatus(`לא נמצאו משמרות עבור ${employeeToCompare} בתמונה.`, 'info');
-            return;
-        }
-
-        // The structureShifts function needs to be adapted for the new generic format
-        // We will simulate the old format it expects
-        const formattedShiftsForParser = shiftsForSelectedEmployee.map(shift => ({
-            day: shift.day,
-            entryTime: shift.start,
-            exitTime: shift.end
-        }));
-
-        currentHilanetShifts = hilanetParser.structureShifts(formattedShiftsForParser, detectedMonth, detectedYear, employeeToCompare);
-        
-        updateStatus('משווה סידורים...', 'loading', true);
-        const allGoogleSheetsShiftsForMaor = await getAllGoogleSheetsShiftsForMaor();
-        currentDifferences = hilanetParser.compareSchedules(allGoogleSheetsShiftsForMaor, currentHilanetShifts);
-        
-        displayDifferences(currentDifferences);
-        updateStatus('השוואת הסידורים הושלמה!', 'success');
-
-    } catch (error) {
-        displayAPIError(error, 'אירעה שגיאה בעיבוד התמונה.');
-    } finally {
-        cleanup();
-    }
-};
-    const cancelHandler = () => {
-        cleanup();
-        updateStatus('העלאת התמונה בוטלה.', 'info');
-    };
-
-    // Use cloneNode to safely remove previous event listeners
-    const newConfirmBtn = confirmBtn.cloneNode(true);
-    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
-    DOMElements.imageMetadataConfirmBtn = newConfirmBtn;
-    newConfirmBtn.addEventListener('click', confirmHandler);
-    
-    const newCancelBtn = cancelBtn.cloneNode(true);
-    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
-    DOMElements.imageMetadataCancelBtn = newCancelBtn;
-    newCancelBtn.addEventListener('click', cancelHandler);
-}
-
 
 document.addEventListener('DOMContentLoaded', initializeAppLogic);

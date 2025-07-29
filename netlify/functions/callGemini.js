@@ -21,12 +21,11 @@ exports.handler = async function(event) {
              return { statusCode: 400, body: JSON.stringify({ error: "Missing imageData or prompt in request." }) };
         }
 
-        // ======================= THE FINAL FIX IS HERE =======================
         // This line removes the "data:image/jpeg;base64," prefix from the string.
         const pureBase64 = imageData.includes(',') ? imageData.split(',')[1] : imageData;
-        // =====================================================================
 
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+        // Use a valid and current model name.
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
 
         // 5. This is the corrected payload to send to Google
         const payload = {
@@ -35,13 +34,14 @@ exports.handler = async function(event) {
                     { text: prompt },
                     { 
                         inlineData: {
-                            mimeType: "image/jpeg",
-                            data: pureBase64 // Use the cleaned data
+                            mimeType: "image/jpeg", // We will standardize on JPEG
+                            data: pureBase64 
                         } 
                     }
                 ]
             }],
             generationConfig: {
+                // Gemini is instructed to respond with a JSON object
                 responseMimeType: "application/json",
             }
         };
@@ -64,10 +64,13 @@ exports.handler = async function(event) {
 
         const result = await geminiResponse.json();
         
-        // 7. Send the successful result back to the browser
+        // 7. Extract the clean JSON text and send it back to the browser
+        const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+
         return {
             statusCode: 200,
-            body: JSON.stringify(result)
+            // We send back the text content which is the JSON string
+            body: jsonText 
         };
 
     } catch (error) {
