@@ -139,21 +139,19 @@ export async function handleSendEmail() {
 
     if (DOMElements.scheduleTable && DOMElements.scheduleTable.querySelector('thead') && DOMElements.scheduleBody) {
         emailBodyContent = `
-                    <div style="font-family: 'Rubik', sans-serif; direction: rtl; text-align: right; color: #333;">
-                        <h2 style="color: #2563eb; font-size: 24px; margin-bottom: 20px;">סידור עבודה לשבוע של ${DOMElements.scheduleTitle.textContent.replace('סידור עבודה לשבוע של ', '')}</h2>
-                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-                            <thead>
-                                <tr style="background-color: #e2e8f0;">
-                                    <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: right;">יום</th>
-                                    <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: right;">תאריך</th>
-                                    <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: right;">משמרת בוקר</th>
-                                    <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: right;">שעות בוקר</th>
-                                    <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: right;">משמרת ערב</th>
-                                    <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: right;">שעות ערב</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                `;
+            <div style="font-family: 'Rubik', sans-serif; direction: rtl; text-align: right; color: #333;">
+                <h2 style="color: #2563eb; font-size: 24px; margin-bottom: 20px;">סידור עבודה לשבוע של ${DOMElements.scheduleTitle.textContent.replace('סידור עבודה לשבוע של ', '')}</h2>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                    <thead>
+                        <tr style="background-color: #e2e8f0;">
+                            <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: right;">יום</th>
+                            <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: right;">תאריך</th>
+                            <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: right;">משמרת בוקר</th>
+                            <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: right;">משמרת ערב</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
         const weekDates = getWeekDates(new Date(weekId));
         const scheduleDataForWeek = allSchedules[weekId] || {};
 
@@ -161,15 +159,12 @@ export async function handleSendEmail() {
             const dayName = DAYS[index];
             const dayData = scheduleDataForWeek[dayName] || {};
 
-            let morningEmployee = (dayData.morning && dayData.morning.employee !== 'none') ? dayData.morning.employee : '—';
-            let morningTimes = (dayData.morning && dayData.morning.start && dayData.morning.end) ? `${dayData.morning.start.substring(0, 5)}-${dayData.morning.end.substring(0, 5)}` : '—';
-
-            let eveningEmployee = (dayData.evening && dayData.evening.employee !== 'none') ? dayData.evening.employee : '—';
-            let eveningTimes = (dayData.evening && dayData.evening.start && dayData.evening.end) ? `${dayData.evening.start.substring(0, 5)}-${dayData.evening.end.substring(0, 5)}` : '—';
+            const morningEmployee = (dayData.morning && dayData.morning.employee !== 'none') ? dayData.morning.employee : '—';
+            const eveningEmployee = (dayData.evening && dayData.evening.employee !== 'none') ? dayData.evening.employee : '—';
 
             let rowStyle = 'background-color: #ffffff;';
-            let cellStyle = 'padding: 10px; border: 1px solid #cbd5e1; text-align: right;';
-            let specialDayCellStyle = 'padding: 10px; border: 1px solid #cbd5e1; text-align: center; background-color: #eff6ff; color: #1e40af; font-weight: bold;';
+            const cellStyle = 'padding: 10px; border: 1px solid #cbd5e1; text-align: right;';
+            const specialDayCellStyle = 'padding: 10px; border: 1px solid #cbd5e1; text-align: center; background-color: #eff6ff; color: #1e40af; font-weight: bold;';
 
             if (dayName === 'שישי' || dayName === 'שבת') {
                 rowStyle = 'background-color: #f0f8ff;';
@@ -180,16 +175,13 @@ export async function handleSendEmail() {
             emailBodyContent += `<td style="${cellStyle}">${formatDate(date, { day: '2-digit', month: '2-digit' })}</td>`;
 
             if (dayName === 'שבת') {
-                emailBodyContent += `<td colspan="4" style="${specialDayCellStyle}">שבת שלום</td>`;
+                emailBodyContent += `<td colspan="2" style="${specialDayCellStyle}">שבת שלום</td>`;
             } else {
                 const eveningCellContent = dayName === 'שישי' ? 'שבת שלום' : eveningEmployee;
-                const eveningCellTimes = dayName === 'שישי' ? '—' : eveningTimes;
                 const eveningCellActualStyle = dayName === 'שישי' ? specialDayCellStyle : cellStyle;
 
                 emailBodyContent += `<td style="${cellStyle}">${morningEmployee}</td>`;
-                emailBodyContent += `<td style="${cellStyle}">${morningTimes}</td>`;
                 emailBodyContent += `<td style="${eveningCellActualStyle}">${eveningCellContent}</td>`;
-                emailBodyContent += `<td style="${eveningCellActualStyle}">${eveningCellTimes}</td>`;
             }
             emailBodyContent += `</tr>`;
         });
@@ -198,6 +190,5 @@ export async function handleSendEmail() {
         emailBodyContent = `סידור עבודה לשבוע של ${DOMElements.scheduleTitle.textContent}. אנא בדוק את הסידור באפליקציה.`;
         updateStatus('שגיאה: לא ניתן ליצור גוף מייל מלא.', 'error', false);
     }
-    await sendEmailWithGmailApi('maorbens@assuta.co.il', `סידור עבודה לשבוע של ${formatDate(new Date(getWeekId(DOMElements.datePicker.value)))}`, emailBodyContent);
+    await sendEmailWithGmailApi(recipient, subject, emailBodyContent);
 }
-
