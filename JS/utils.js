@@ -86,3 +86,44 @@ export function createMessage(to, subject, messageBody) {
     // The replace calls are required for the raw message format for the Gmail API
     return utf8ToBase64(fullEmailString).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
+/**
+ * Displays a custom confirmation modal dialog.
+ * @param {string} message - The message to display in the confirmation box.
+ * @param {Function} onConfirm - The callback function to execute if the user confirms.
+ */
+export function showCustomConfirmation(message, onConfirm) {
+    const modal = document.createElement('div');
+    // Use fixed positioning and high z-index to ensure it's on top
+    modal.className = 'fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[1050] p-4';
+    modal.innerHTML = `
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm text-center">
+            <p class="text-lg font-semibold mb-6">${message}</p>
+            <div class="flex justify-center gap-4">
+                <button id="confirm-yes-btn" class="btn btn-red px-6 py-2">אישור</button>
+                <button id="confirm-no-btn" class="btn bg-slate-200 text-slate-700 hover:bg-slate-300 px-6 py-2">ביטול</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    const confirmBtn = document.getElementById('confirm-yes-btn');
+    const cancelBtn = document.getElementById('confirm-no-btn');
+
+    const closeModal = () => {
+        modal.remove();
+    };
+
+    confirmBtn.addEventListener('click', () => {
+        onConfirm();
+        closeModal();
+    });
+    
+    cancelBtn.addEventListener('click', closeModal);
+    
+    // Also close the modal if the user clicks the background overlay
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeModal();
+        }
+    });
+}

@@ -1,10 +1,13 @@
+// קובץ: JS/main.js
+
 import { fetchData, handleCreateCalendarEvents, handleDeleteCalendarEvents, initializeGapiClient, saveFullSchedule } from './Api/googleApi.js';
 import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts } from './components/charts.js';
 import { closeDifferencesModal, closeModal, closeVacationModal, displayDifferences, handleModalSave, showEmployeeSelectionModal, showVacationModal } from './components/modal.js';
 import { handleExportToExcel, handleSendEmail, renderSchedule } from './components/schedule.js';
 import { EMPLOYEES, DAYS, DEFAULT_SHIFT_TIMES, VACATION_EMPLOYEE_REPLACEMENT, CLIENT_ID, SCOPES, SPREADSHEET_ID, SHEET_NAME } from './config.js';
 import * as hilanetParser from './services/hilanetParser.js';
-import { formatDate, getWeekId, getWeekDates } from './utils.js';
+// שימו לב: הפונקציה מיובאת כאן מקובץ ה-utils
+import { formatDate, getWeekId, getWeekDates, showCustomConfirmation } from './utils.js';
 
 
 // --- Global Variables & State Management ---
@@ -377,7 +380,6 @@ async function getAllGoogleSheetsShiftsForMaor() {
             });
         }
     }
-    // *** THIS IS THE FIX: Changed maor_shifts to maorShifts ***
     return maorShifts;
 }
 
@@ -465,9 +467,11 @@ function initializeAppLogic() {
     
     // Attach all other event listeners
     if (DOMElements.datePicker) DOMElements.datePicker.addEventListener('change', () => renderSchedule(getWeekId(DOMElements.datePicker.value)));
-    if (DOMElements.resetBtn) DOMElements.resetBtn.addEventListener('click', () => { /* Logic from old main.js */ });
-    if (DOMElements.emailBtn) DOMElements.emailBtn.addEventListener('click', () => { /* Logic from old main.js */ });
+    if (DOMElements.resetBtn) DOMElements.resetBtn.addEventListener('click', handleReset); // Make sure this calls the function
+    if (DOMElements.emailBtn) DOMElements.emailBtn.addEventListener('click', handleSendEmail); // Make sure this calls the function
     if (DOMElements.modalSaveBtn) DOMElements.modalSaveBtn.addEventListener('click', handleModalSave);
+    // You might need to add back other listeners if they were removed
+    if (DOMElements.copyPreviousWeekBtn) DOMElements.copyPreviousWeekBtn.addEventListener('click', handleCopyPreviousWeek);
 
 
     const today = new Date().toISOString().split('T')[0];
@@ -477,3 +481,15 @@ function initializeAppLogic() {
 }
 
 document.addEventListener('DOMContentLoaded', initializeAppLogic);
+
+// Add dummy functions if they were removed but are still called from other files
+// These should ideally be moved or refactored later
+async function handleReset() {
+    // This function needs the logic from your original file
+    console.log("Reset logic needs to be re-implemented");
+}
+
+async function handleCopyPreviousWeek() {
+    // This function needs the logic from your original file
+    console.log("Copy previous week logic needs to be re-implemented");
+}
