@@ -14,7 +14,7 @@ export let DOMElements = {};
 
 // Application Data Stores
 export let allSchedules = {};
-export let allCreatedCalendarEvents = {}; 
+export let allCreatedCalendarEvents = {};
 let currentHilanetShifts = {};
 let currentDifferences = [];
 let isProcessing = false;
@@ -94,6 +94,8 @@ export function maybeInitAuthClient() {
             DOMElements.signoutButton.onclick = signOut;
             DOMElements.authorizeButton.disabled = false;
         }
+        // *** FIX: Call checkSignInStatus() here, AFTER gapi is confirmed to be loaded ***
+        checkSignInStatus();
     }
 }
 
@@ -112,6 +114,7 @@ async function onTokenResponse(resp) {
 function checkSignInStatus() {
     const token = localStorage.getItem('google_access_token');
     if (token) {
+        // This is the line that was causing the error. It's now safe to call.
         gapi.client.setToken({ access_token: token });
         updateSigninStatus(true);
     } else {
@@ -513,7 +516,7 @@ function initializeAppLogic() {
     const today = new Date().toISOString().split('T')[0];
     DOMElements.datePicker.value = getWeekId(today);
     loadGoogleApiScripts();
-    checkSignInStatus();
+    // *** FIX: Removed checkSignInStatus() from here to prevent the race condition ***
 }
 
 document.addEventListener('DOMContentLoaded', initializeAppLogic);
