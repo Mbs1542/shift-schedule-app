@@ -54,3 +54,35 @@ export function getWeekDates(startDate) {
     }
     return dates;
 }
+
+/**
+ * Creates a raw email message string for the Gmail API.
+ * @param {string} to - The recipient's email address.
+ * @param {string} subject - The email subject.
+ * @param {string} messageBody - The HTML body of the email.
+ * @returns {string} The base64-encoded raw email string.
+ */
+export function createMessage(to, subject, messageBody) {
+    const utf8ToBase64 = (str) => {
+        try {
+            // This properly handles UTF-8 characters in the subject and body
+            return btoa(unescape(encodeURIComponent(str)));
+        } catch (e) {
+            console.error("Error in utf8ToBase64 encoding:", e);
+            return "";
+        }
+    };
+    const emailParts = [
+        `From: me`,
+        `To: ${to}`,
+        `Subject: =?utf-8?B?${utf8ToBase64(subject)}?=`,
+        'MIME-Version: 1.0',
+        'Content-Type: text/html; charset="UTF-8"',
+        'Content-Transfer-Encoding: base64',
+        '',
+        utf8ToBase64(messageBody)
+    ];
+    const fullEmailString = emailParts.join('\r\n');
+    // The replace calls are required for the raw message format for the Gmail API
+    return utf8ToBase64(fullEmailString).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}

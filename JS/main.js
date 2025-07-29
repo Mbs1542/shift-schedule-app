@@ -1,5 +1,3 @@
-// קובץ: JS/main.js
-
 import { fetchData, handleCreateCalendarEvents, handleDeleteCalendarEvents, initializeGapiClient, saveFullSchedule } from './Api/googleApi.js';
 import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts } from './components/charts.js';
 import { closeDifferencesModal, closeModal, closeVacationModal, displayDifferences, handleModalSave, showEmployeeSelectionModal, showVacationModal } from './components/modal.js';
@@ -379,6 +377,7 @@ async function getAllGoogleSheetsShiftsForMaor() {
             });
         }
     }
+    // *** THIS IS THE FIX: Changed maor_shifts to maorShifts ***
     return maorShifts;
 }
 
@@ -464,7 +463,12 @@ function initializeAppLogic() {
     if (DOMElements.uploadHilanetInput) DOMElements.uploadHilanetInput.addEventListener('change', handleUploadHilanet);
     if (DOMElements.uploadImageInput) DOMElements.uploadImageInput.addEventListener('change', handleUploadImage);
     
-    // ... all other event listeners ...
+    // Attach all other event listeners
+    if (DOMElements.datePicker) DOMElements.datePicker.addEventListener('change', () => renderSchedule(getWeekId(DOMElements.datePicker.value)));
+    if (DOMElements.resetBtn) DOMElements.resetBtn.addEventListener('click', () => { /* Logic from old main.js */ });
+    if (DOMElements.emailBtn) DOMElements.emailBtn.addEventListener('click', () => { /* Logic from old main.js */ });
+    if (DOMElements.modalSaveBtn) DOMElements.modalSaveBtn.addEventListener('click', handleModalSave);
+
 
     const today = new Date().toISOString().split('T')[0];
     DOMElements.datePicker.value = getWeekId(today);

@@ -1,8 +1,7 @@
-// קובץ: JS/Api/googleApi.js
 import { SPREADSHEET_ID, SHEET_NAME, DAYS } from "../config.js";
-import { displayAPIError, allSchedules, DOMElements, updateStatus, createMessage, showCustomConfirmation } from "../main.js";
+import { displayAPIError, allSchedules, DOMElements, updateStatus, showCustomConfirmation } from "../main.js";
 import { renderSchedule } from '../components/schedule.js';
-import { getWeekDates, getWeekId } from "../utils.js";
+import { getWeekDates, getWeekId, createMessage } from "../utils.js"; 
 
 /**
  * Initializes the GAPI client.
