@@ -1,7 +1,7 @@
-import { DEFAULT_SHIFT_TIMES, EMPLOYEES, VACATION_EMPLOYEE_REPLACEMENT } from "../config.js";
+import { DEFAULT_SHIFT_TIMES, EMPLOYEES, VACATION_EMPLOYEE_REPLACEMENT, DAYS } from "../config.js";
 import { saveFullSchedule } from "../Api/googleApi.js";
 import { updateStatus, DOMElements, allSchedules } from "../main.js";
-import { formatDate, getWeekId } from "../utils.js";
+import { getWeekId } from "../utils.js";
 import { renderSchedule } from "./schedule.js";
 
 
@@ -86,20 +86,27 @@ export async function handleModalSave() {
     const weekId = getWeekId(DOMElements.datePicker.value);
     const day = DOMElements.shiftModal.dataset.day;
     const shift = DOMElements.shiftModal.dataset.shift;
-    const startTime = DOMElements.shiftStartTimeInput.value + ':00';
-    const endTime = DOMElements.shiftEndTimeInput.value + ':00';
+    const startTime = DOMElements.shiftStartTimeInput.value;
+    const endTime = DOMElements.shiftEndTimeInput.value;
+
+    // ### שינוי: נוספה בדיקת תקינות זמנים ###
+    // בדיקה פשוטה שמוודאת ששעת הסיום אינה לפני שעת ההתחלה באותו היום
+    if (endTime < startTime) {
+        updateStatus('שגיאה: שעת הסיום אינה יכולה להיות לפני שעת ההתחלה.', 'error');
+        return; // מונע את השמירה
+    }
 
     if (!allSchedules[weekId]) allSchedules[weekId] = {};
     if (!allSchedules[weekId][day]) allSchedules[weekId][day] = {};
     allSchedules[weekId][day][shift] = {
         employee,
-        start: startTime,
-        end: endTime
+        start: startTime + ':00', // מוסיף שניות בחזרה לצורך עקביות
+        end: endTime + ':00'
     };
 
     closeModal();
     renderSchedule(weekId);
-    await saveFullSchedule(allSchedules); // <-- שימוש בפונקציה החדשה
+    await saveFullSchedule(allSchedules);
 }
 
 export function closeModal() {
@@ -112,7 +119,6 @@ export function showEmployeeSelectionModal(actionCallback, modalTitleText, preSe
         return;
     }
     
-    // ** FIX: Check if the element exists before trying to use it **
     if (DOMElements.employeeSelectionModalTitle) {
         DOMElements.employeeSelectionModalTitle.textContent = modalTitleText;
     }
@@ -209,7 +215,6 @@ export function displayDifferences(differences) {
         displayArea.innerHTML = '<p class="text-center p-4">הכל מעודכן! ✅</p>';
         if (DOMElements.importSelectedHilanetShiftsBtn) DOMElements.importSelectedHilanetShiftsBtn.style.display = 'none';
         
-        // ** FIX: Check if downloadDifferencesBtn exists before accessing its style **
         const downloadBtn = document.getElementById('download-differences-btn');
         if (downloadBtn) {
             downloadBtn.style.display = 'none';

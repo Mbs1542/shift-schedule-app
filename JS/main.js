@@ -1,5 +1,6 @@
 import { fetchData, handleCreateCalendarEvents, handleDeleteCalendarEvents, initializeGapiClient, saveFullSchedule } from './Api/googleApi.js';
-import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts } from './components/charts.js';
+// ### שינוי: נוספו ייבואים עבור הפונקציות החדשות ###
+import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts, handleExportMonthlySummary, handleAnalyzeMonth } from './components/charts.js';
 import { closeDifferencesModal, closeModal, closeVacationModal, displayDifferences, handleModalSave, showEmployeeSelectionModal, showVacationModal } from './components/modal.js';
 import { handleExportToExcel, handleSendEmail, renderSchedule, sendFridaySummaryEmail } from './components/schedule.js';
 import { EMPLOYEES, DAYS, VACATION_EMPLOYEE_REPLACEMENT, CLIENT_ID, SCOPES } from './config.js';
@@ -94,7 +95,6 @@ export function maybeInitAuthClient() {
             DOMElements.signoutButton.onclick = signOut;
             DOMElements.authorizeButton.disabled = false;
         }
-        // *** FIX: Call checkSignInStatus() here, AFTER gapi is confirmed to be loaded ***
         checkSignInStatus();
     }
 }
@@ -114,7 +114,6 @@ async function onTokenResponse(resp) {
 function checkSignInStatus() {
     const token = localStorage.getItem('google_access_token');
     if (token) {
-        // This is the line that was causing the error. It's now safe to call.
         gapi.client.setToken({ access_token: token });
         updateSigninStatus(true);
     } else {
@@ -470,6 +469,12 @@ function initializeAppLogic() {
         summaryEndDateInput: document.getElementById('summary-end-date'),
         summaryConfirmBtn: document.getElementById('summary-confirm-btn'),
         summaryCancelBtn: document.getElementById('summary-cancel-btn'),
+        // ### שינוי: נוספו אלמנטים חדשים ###
+        logoImg: document.getElementById('logo-img'),
+        exportMonthlySummaryBtn: document.getElementById('export-monthly-summary-btn'),
+        analyzeMonthlySummaryBtn: document.getElementById('analyze-monthly-summary-btn'),
+        monthlyAnalysisContainer: document.getElementById('monthly-analysis-container'),
+        monthlyAnalysisContent: document.getElementById('monthly-analysis-content'),
     };
 
     function loadGoogleApiScripts() {
@@ -511,6 +516,10 @@ function initializeAppLogic() {
     DOMElements.summaryConfirmBtn.addEventListener('click', handleSendFridaySummary);
     DOMElements.summaryCancelBtn.addEventListener('click', closeFridaySummaryModal);
     
+    // ### שינוי: נוספו מאזיני אירועים ###
+    DOMElements.exportMonthlySummaryBtn.addEventListener('click', handleExportMonthlySummary);
+    DOMElements.analyzeMonthlySummaryBtn.addEventListener('click', handleAnalyzeMonth);
+
     // Populate dropdowns
     EMPLOYEES.forEach(emp => {
         if (emp === VACATION_EMPLOYEE_REPLACEMENT) return;
@@ -518,15 +527,24 @@ function initializeAppLogic() {
         option.value = emp;
         option.textContent = emp;
         DOMElements.monthlySummaryEmployeeSelect.appendChild(option.cloneNode(true));
-        DOMElements.vacationEmployeeSelect.appendChild(option.cloneNode(true));
+        // ### תיקון: הבטחה שגם רשימת החופשה מתמלאת ###
+        if (DOMElements.vacationEmployeeSelect) {
+            DOMElements.vacationEmployeeSelect.appendChild(option.cloneNode(true));
+        }
     });
-    DOMElements.monthlySummaryEmployeeSelect.addEventListener('change', updateMonthlySummaryChart);
+    
+    // ### שינוי: הסתרת ניתוח AI בעת שינוי עובד ###
+    DOMElements.monthlySummaryEmployeeSelect.addEventListener('change', () => {
+        updateMonthlySummaryChart();
+        if (DOMElements.monthlyAnalysisContainer) {
+            DOMElements.monthlyAnalysisContainer.classList.add('hidden');
+        }
+    });
 
     // Initial setup
     const today = new Date().toISOString().split('T')[0];
     DOMElements.datePicker.value = getWeekId(today);
     loadGoogleApiScripts();
-    // *** FIX: Removed checkSignInStatus() from here to prevent the race condition ***
 }
 function showFridaySummaryModal() {
     if (gapi.client.getToken() === null) {
@@ -557,8 +575,6 @@ async function handleSendFridaySummary() {
     }
 
     closeFridaySummaryModal();
-
-    // This function will be created in the next step
     await sendFridaySummaryEmail(startDate, endDate);
 }
 

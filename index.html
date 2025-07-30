@@ -21,6 +21,9 @@
 
     <div class="max-w-6xl mx-auto">
         <div class="text-center mb-6">
+            <!-- ### שינוי: נוסף מקום ללוגו ### -->
+            <!-- החלף את הקישור בקישור ללוגו שלך אחרי שתעלה אותו -->
+            <img id="logo-img" src="https://placehold.co/200x80/e0e7ff/3730a3?text=הלוגו+שלך" alt="Logo" class="h-16 w-auto mx-auto mb-4 rounded-md">
             <h1 class="text-3xl md:text-4xl font-bold text-slate-800">מערכת סידור משמרות</h1>
             <p class="text-slate-600 mt-2 text-lg">הנתונים נשמרים ונקראים ישירות מ-Google Sheets.</p>
         </div>
@@ -86,13 +89,23 @@
 
                 <div id="monthly-summary-chart-card" class="card hidden">
                     <h2 class="text-2xl font-semibold mb-4 text-slate-700 text-center">סיכום משמרות חודשי לעובד</h2>
-                    <div class="mb-4">
-                        <label for="monthly-summary-employee-select" class="block text-sm font-medium text-slate-700 mb-2">בחר עובד:</label>
-                        <select id="monthly-summary-employee-select" class="p-2 border border-slate-300 rounded-md w-full max-w-xs">
-                        </select>
+                    <!-- ### שינוי: נוספו כפתורים לייצוא וניתוח ### -->
+                    <div class="flex flex-col sm:flex-row justify-center items-center gap-4 mb-4">
+                        <div class="flex-grow w-full sm:w-auto">
+                            <label for="monthly-summary-employee-select" class="block text-sm font-medium text-slate-700 mb-2">בחר עובד:</label>
+                            <select id="monthly-summary-employee-select" class="p-2 border border-slate-300 rounded-md w-full max-w-xs">
+                            </select>
+                        </div>
+                        <button id="export-monthly-summary-btn" class="btn btn-green self-stretch sm:self-end">ייצא נתונים</button>
+                        <button id="analyze-monthly-summary-btn" class="btn btn-purple self-stretch sm:self-end">קבל תובנות AI</button>
                     </div>
                     <div class="chart-container">
                         <canvas id="monthly-summary-chart"></canvas>
+                    </div>
+                    <!-- ### שינוי: נוסף אזור להצגת תובנות AI ### -->
+                    <div id="monthly-analysis-container" class="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-200 hidden">
+                        <h4 class="font-semibold text-lg text-slate-800 mb-2">תובנות על החודש</h4>
+                        <div id="monthly-analysis-content" class="text-slate-600 whitespace-pre-wrap"></div>
                     </div>
                 </div>
             </div>
@@ -104,7 +117,7 @@
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
             <h3 id="modal-title" class="text-xl font-bold mb-6 text-center text-slate-800"></h3>
             <div id="modal-options" class="space-y-3"></div>
-            <button id="gemini-suggestion-btn" class="mt-4 w-full p-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-semibold">הצע לי שיבוץ לעובד</button>
+            <button id="gemini-suggestion-btn" class="mt-4 w-full btn btn-purple">הצע לי שיבוץ לעובד</button>
             <div class="space-y-4 mt-4">
                 <div>
                     <label for="shift-start-time" class="block text-sm font-medium text-slate-700">שעת התחלה:</label>
@@ -115,8 +128,10 @@
                     <input type="time" id="shift-end-time" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
                 </div>
             </div>
-            <button id="modal-save-btn" class="mt-6 w-full p-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold">שמור</button>
-            <button id="modal-close-btn" class="mt-2 w-full p-3 bg-slate-200 hover:bg-slate-300 rounded-lg font-semibold">ביטול</button>
+            <div class="mt-6 flex gap-4">
+                <button id="modal-close-btn" class="w-full btn btn-slate">ביטול</button>
+                <button id="modal-save-btn" class="w-full btn btn-blue">שמור</button>
+            </div>
         </div>
     </div>
 
@@ -126,8 +141,8 @@
             <h3 id="employee-selection-modal-title" class="text-xl font-bold mb-6 text-center text-slate-800">בחר עובדים</h3>
             <div id="employee-checkboxes-container" class="space-y-3 mb-6"></div>
             <div class="flex justify-center gap-4">
+                <button id="employee-selection-cancel-btn" class="btn btn-slate px-6 py-2">ביטול</button>
                 <button id="employee-selection-confirm-btn" class="btn btn-blue px-6 py-2">אישור</button>
-                <button id="employee-selection-cancel-btn" class="btn bg-slate-200 text-slate-700 hover:bg-slate-300 px-6 py-2">ביטול</button>
             </div>
         </div>
     </div>
@@ -141,8 +156,6 @@
                     <label for="vacation-employee-select" class="block text-sm font-medium text-slate-700">בחר עובד:</label>
                     <select id="vacation-employee-select" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
                         <option value="">בחר עובד</option>
-                        <option value="מאור">מאור</option>
-                        <option value="מור">מור</option>
                     </select>
                 </div>
                 <div>
@@ -155,8 +168,8 @@
                 </div>
             </div>
             <div class="flex justify-center gap-4 mt-8">
+                <button id="vacation-cancel-btn" class="btn btn-slate px-6 py-2">ביטול</button>
                 <button id="vacation-confirm-btn" class="btn btn-blue px-6 py-2">שבץ חופשה</button>
-                <button id="vacation-cancel-btn" class="btn bg-slate-200 text-slate-700 hover:bg-slate-300 px-6 py-2">ביטול</button>
             </div>
         </div>
     </div>
@@ -169,14 +182,14 @@
             <div id="differences-display" class="text-sm text-slate-700 mb-4 overflow-x-auto"></div>
             <div id="differences-modal-status" class="text-center text-sm font-medium mb-4"></div>
             <div class="flex justify-center gap-4">
-                <button id="import-selected-hilanet-shifts-btn" class="btn btn-purple">יבוא משמרות נבחרות</button>
+                <button id="close-differences-modal-btn" class="btn btn-slate">סגור</button>
                 <button id="download-differences-btn" class="btn btn-green">הורד מסמך הבדלים (CSV)</button>
-                <button id="close-differences-modal-btn" class="btn bg-slate-200 text-slate-700 hover:bg-slate-300">סגור</button>
+                <button id="import-selected-hilanet-shifts-btn" class="btn btn-purple">יבוא משמרות נבחרות</button>
             </div>
         </div>
     </div>
 
-    <!-- **החלון הקופץ החדש להעלאת תמונה** -->
+    <!-- Image Metadata Modal -->
     <div id="image-metadata-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
             <h3 class="text-xl font-bold mb-6 text-center text-slate-800">פרטי סידור העבודה שבתמונה</h3>
@@ -197,30 +210,33 @@
                 </div>
             </div>
             <div class="flex justify-center gap-4 mt-8">
+                <button id="image-metadata-cancel-btn" class="btn btn-slate px-6 py-2">ביטול</button>
                 <button id="image-metadata-confirm-btn" class="btn btn-blue px-6 py-2">המשך לניתוח</button>
-                <button id="image-metadata-cancel-btn" class="btn bg-slate-200 text-slate-700 hover:bg-slate-300 px-6 py-2">ביטול</button>
             </div>
         </div>
     </div>
-    <script type="module" src="JS/main.js"></script>
+    
+    <!-- Friday Summary Modal -->
     <div id="friday-summary-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-        <h3 class="text-xl font-bold mb-6 text-center text-slate-800">בחירת טווח תאריכים לסיכום</h3>
-        <div class="space-y-4">
-            <div>
-                <label for="summary-start-date" class="block text-sm font-medium text-slate-700">מתאריך:</label>
-                <input type="date" id="summary-start-date" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h3 class="text-xl font-bold mb-6 text-center text-slate-800">בחירת טווח תאריכים לסיכום</h3>
+            <div class="space-y-4">
+                <div>
+                    <label for="summary-start-date" class="block text-sm font-medium text-slate-700">מתאריך:</label>
+                    <input type="date" id="summary-start-date" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
+                </div>
+                <div>
+                    <label for="summary-end-date" class="block text-sm font-medium text-slate-700">עד תאריך:</label>
+                    <input type="date" id="summary-end-date" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
+                </div>
             </div>
-            <div>
-                <label for="summary-end-date" class="block text-sm font-medium text-slate-700">עד תאריך:</label>
-                <input type="date" id="summary-end-date" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
+            <div class="flex justify-center gap-4 mt-8">
+                <button id="summary-cancel-btn" class="btn btn-slate px-6 py-2">ביטול</button>
+                <button id="summary-confirm-btn" class="btn btn-blue px-6 py-2">שלח סיכום</button>
             </div>
-        </div>
-        <div class="flex justify-center gap-4 mt-8">
-            <button id="summary-confirm-btn" class="btn btn-blue px-6 py-2">שלח סיכום</button>
-            <button id="summary-cancel-btn" class="btn bg-slate-200 text-slate-700 hover:bg-slate-300 px-6 py-2">ביטול</button>
         </div>
     </div>
-</div>
+
+    <script type="module" src="JS/main.js"></script>
 </body>
 </html>

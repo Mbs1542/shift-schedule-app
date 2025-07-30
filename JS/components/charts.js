@@ -1,12 +1,9 @@
 import { DAYS } from "../config.js";
-// --- תיקון: ייבוא רק מה שנחוץ באמת מ-main.js ---
-import { updateStatus, DOMElements, allSchedules } from "../main.js";
+import { updateStatus, DOMElements, allSchedules, displayAPIError } from "../main.js";
 import { getWeekId, formatDate, getWeekDates, formatMonthYear } from "../utils.js";
 
-// --- תיקון: ניהול הגרפים מתבצע באופן מקומי בתוך הקובץ הזה בלבד ---
 let weeklyChart = null;
 let monthlySummaryChart = null;
-
 
 /** Helper function to calculate duration in hours between two time strings (HH:MM:SS) */
 function calculateHours(start, end) {
@@ -21,7 +18,6 @@ function calculateHours(start, end) {
         return 0;
     }
 }
-
 
 /** Displays a bar chart showing shift distribution per employee for the current week. */
 export async function handleShowChart() {
@@ -115,7 +111,6 @@ export async function handleShowChart() {
     };
 
     const ctx = document.getElementById('shift-chart').getContext('2d');
-    // --- תיקון: שימוש במשתנה מקומי ---
     if (weeklyChart) weeklyChart.destroy();
     weeklyChart = new Chart(ctx, chartConfig);
 
@@ -123,57 +118,66 @@ export async function handleShowChart() {
     updateStatus('גרף המשמרות הוצג בהצלחה!', 'success', false);
 }
 
+/** Helper function to gather all monthly data for an employee */
+function getMonthlyDataForEmployee(employeeName) {
+    const monthlyData = {};
+
+    for (const weekId in allSchedules) {
+        const weekData = allSchedules[weekId];
+        const weekDates = getWeekDates(new Date(weekId));
+
+        weekDates.forEach(dateObj => {
+            const monthYearKey = dateObj.toISOString().substring(0, 7); // YYYY-MM
+            const dayName = DAYS[dateObj.getDay()];
+            const dayData = weekData[dayName] || {};
+
+            if (!monthlyData[monthYearKey]) {
+                monthlyData[monthYearKey] = { morning: 0, evening: 0, totalHours: 0, shifts: [] };
+            }
+
+            ['morning', 'evening'].forEach(shiftType => {
+                if (dayData[shiftType] && dayData[shiftType].employee === employeeName) {
+                    const shift = dayData[shiftType];
+                    const duration = calculateHours(shift.start, shift.end);
+                    monthlyData[monthYearKey][shiftType] += 1;
+                    monthlyData[monthYearKey].totalHours += duration;
+                    monthlyData[monthYearKey].shifts.push({
+                        date: dateObj.toISOString().split('T')[0],
+                        dayName: dayName,
+                        shiftType: shiftType,
+                        start: shift.start,
+                        end: shift.end,
+                        duration: duration
+                    });
+                }
+            });
+        });
+    }
+    return monthlyData;
+}
+
+
 export function updateMonthlySummaryChart() {
     const selectedEmployee = DOMElements.monthlySummaryEmployeeSelect.value;
     if (!selectedEmployee) {
-        // --- תיקון: שימוש במשתנה מקומי ---
         if (monthlySummaryChart) monthlySummaryChart.destroy();
         monthlySummaryChart = null;
         DOMElements.monthlySummaryChartCard.classList.add('hidden');
         return;
     }
 
-    const monthlyData = {};
-
-    for (const weekId in allSchedules) {
-        if (allSchedules.hasOwnProperty(weekId)) {
-            const weekData = allSchedules[weekId];
-            const weekDates = getWeekDates(new Date(weekId));
-
-            weekDates.forEach(dateObj => {
-                const monthYearKey = dateObj.toISOString().substring(0, 7);
-                const dayName = DAYS[dateObj.getDay()];
-                const dayData = weekData[dayName] || {};
-
-                if (!monthlyData[monthYearKey]) {
-                    monthlyData[monthYearKey] = { morning: 0, evening: 0, totalHours: 0 };
-                }
-
-                if (dayData.morning && dayData.morning.employee === selectedEmployee) {
-                    monthlyData[monthYearKey].morning += 1;
-                    monthlyData[monthYearKey].totalHours += calculateHours(dayData.morning.start, dayData.morning.end);
-                }
-                if (dayName !== 'שישי' && dayData.evening && dayData.evening.employee === selectedEmployee) {
-                    monthlyData[monthYearKey].evening += 1;
-                    monthlyData[monthYearKey].totalHours += calculateHours(dayData.evening.start, dayData.evening.end);
-                }
-            });
-        }
-    }
-
+    const monthlyData = getMonthlyDataForEmployee(selectedEmployee);
     const sortedMonths = Object.keys(monthlyData).sort();
 
     if (sortedMonths.length === 0) {
         updateStatus(`לא נמצאו נתונים חודשיים עבור ${selectedEmployee}.`, 'info');
         DOMElements.monthlySummaryChartCard.classList.add('hidden');
-        // --- תיקון: שימוש במשתנה מקומי ---
         if (monthlySummaryChart) monthlySummaryChart.destroy();
         monthlySummaryChart = null;
         return;
     }
 
     const totalHoursForAllMonths = sortedMonths.reduce((total, month) => total + monthlyData[month].totalHours, 0);
-
     const formattedLabels = sortedMonths.map(formatMonthYear);
     const monthlyMorningData = sortedMonths.map(month => monthlyData[month].morning);
     const monthlyEveningData = sortedMonths.map(month => monthlyData[month].evening);
@@ -213,13 +217,98 @@ export function updateMonthlySummaryChart() {
     };
 
     const ctx = document.getElementById('monthly-summary-chart').getContext('2d');
-    // --- תיקון: שימוש במשתנה מקומי ---
     if (monthlySummaryChart) monthlySummaryChart.destroy();
     monthlySummaryChart = new Chart(ctx, chartConfig);
     DOMElements.monthlySummaryChartCard.classList.remove('hidden');
 }
 
-// --- פונקציה חדשה שניתן לייצא ולקרוא לה מ-main.js ---
+/** ### חדש: ייצוא סיכום חודשי לקובץ CSV ### */
+export function handleExportMonthlySummary() {
+    const selectedEmployee = DOMElements.monthlySummaryEmployeeSelect.value;
+    if (!selectedEmployee) {
+        updateStatus('יש לבחור עובד לייצוא.', 'info');
+        return;
+    }
+
+    const monthlyData = getMonthlyDataForEmployee(selectedEmployee);
+    const sortedMonths = Object.keys(monthlyData).sort();
+
+    if (sortedMonths.length === 0) {
+        updateStatus(`לא נמצאו נתונים לייצוא עבור ${selectedEmployee}.`, 'info');
+        return;
+    }
+
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // \uFEFF for BOM to support Hebrew in Excel
+    csvContent += "Date,Day,Shift Type,Start Time,End Time,Duration (Hours)\n";
+
+    sortedMonths.forEach(monthKey => {
+        monthlyData[monthKey].shifts.forEach(shift => {
+            const row = [shift.date, shift.dayName, shift.shiftType, shift.start, shift.end, shift.duration.toFixed(2)];
+            csvContent += row.join(",") + "\n";
+        });
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `monthly_summary_${selectedEmployee}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    updateStatus('הנתונים יוצאו בהצלחה.', 'success');
+}
+
+/** ### חדש: קבלת ניתוח חודשי מ-AI ### */
+export async function handleAnalyzeMonth() {
+    const selectedEmployee = DOMElements.monthlySummaryEmployeeSelect.value;
+    if (!selectedEmployee) {
+        updateStatus('יש לבחור עובד לניתוח.', 'info');
+        return;
+    }
+
+    const monthlyData = getMonthlyDataForEmployee(selectedEmployee);
+    const sortedMonths = Object.keys(monthlyData).sort();
+    
+    if (sortedMonths.length === 0) {
+        updateStatus(`לא נמצאו נתונים לניתוח עבור ${selectedEmployee}.`, 'info');
+        return;
+    }
+    
+    const latestMonthKey = sortedMonths[sortedMonths.length - 1];
+    const dataToAnalyze = monthlyData[latestMonthKey];
+
+    updateStatus('מנתח את החודש עם AI...', 'loading', true);
+    DOMElements.monthlyAnalysisContainer.classList.add('hidden');
+
+    try {
+        const response = await fetch('/.netlify/functions/analyze-month', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                employee: selectedEmployee,
+                month: latestMonthKey,
+                shifts: dataToAnalyze.shifts 
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to get analysis');
+        }
+
+        const result = await response.json();
+        DOMElements.monthlyAnalysisContent.textContent = result.analysis;
+        DOMElements.monthlyAnalysisContainer.classList.remove('hidden');
+        updateStatus('ניתוח החודש הושלם.', 'success');
+
+    } catch (error) {
+        displayAPIError(error, 'שגיאה בקבלת ניתוח חודשי.');
+        DOMElements.monthlyAnalysisContent.textContent = 'לא ניתן היה לקבל ניתוח כרגע.';
+        DOMElements.monthlyAnalysisContainer.classList.remove('hidden');
+    }
+}
+
+
 export function destroyAllCharts() {
     if (weeklyChart) {
         weeklyChart.destroy();
