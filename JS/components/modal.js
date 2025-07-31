@@ -202,27 +202,24 @@ export function closeVacationModal() {
 
 export function displayDifferences(differences) {
     const displayArea = DOMElements.differencesDisplay;
-    const modal = DOMElements.differencesModal;
+    const container = DOMElements.differencesContainer;
     const statusArea = document.getElementById('differences-modal-status');
     const importBtn = DOMElements.importSelectedHilanetShiftsBtn;
     const downloadBtn = document.getElementById('download-differences-btn');
 
-    if (!displayArea || !modal || !statusArea || !importBtn || !downloadBtn) {
-        console.error("One or more modal elements are missing from the DOM.");
+    if (!displayArea || !container || !statusArea || !importBtn || !downloadBtn) {
+        console.error("One or more differences elements are missing from the DOM.");
         return;
     }
 
-    // Clear previous content
     displayArea.innerHTML = '';
 
     if (differences.length === 0) {
-        // Case: No differences found
         statusArea.textContent = 'לא נמצאו פערים בין סידור העבודה לקובץ חילנט.';
         displayArea.innerHTML = '<p class="text-center p-4">הכל מעודכן! ✅</p>';
         importBtn.style.display = 'none';
         downloadBtn.style.display = 'none';
     } else {
-        // Case: Differences were found
         statusArea.textContent = `נמצאו ${differences.length} פערים:`;
         importBtn.style.display = 'inline-block';
         downloadBtn.style.display = 'inline-block';
@@ -302,11 +299,11 @@ export function displayDifferences(differences) {
         }
     }
 
-    modal.classList.remove('hidden');
+    container.classList.remove('hidden');
 }
 
-export function closeDifferencesModal() {
-    if (DOMElements.differencesModal) {
-        DOMElements.differencesModal.classList.add('hidden');
+export function hideDifferencesContainer() {
+    if (DOMElements.differencesContainer) {
+        DOMElements.differencesContainer.classList.add('hidden');
     }
 }

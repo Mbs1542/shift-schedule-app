@@ -1,6 +1,6 @@
 import { fetchData, handleCreateCalendarEvents, handleDeleteCalendarEvents, initializeGapiClient, saveFullSchedule } from './Api/googleApi.js';
 import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts, handleExportMonthlySummary, handleAnalyzeMonth, populateMonthSelector } from './components/charts.js';
-import { closeDifferencesModal, closeModal, closeVacationModal, displayDifferences, handleModalSave, showEmployeeSelectionModal, showVacationModal } from './components/modal.js';
+import { displayDifferences, hideDifferencesContainer, closeModal, closeVacationModal, handleModalSave, showEmployeeSelectionModal, showVacationModal } from './components/modal.js';
 import { handleExportToExcel, handleSendEmail, renderSchedule, sendFridaySummaryEmail } from './components/schedule.js';
 import { EMPLOYEES, DAYS, VACATION_EMPLOYEE_REPLACEMENT, CLIENT_ID, SCOPES } from './config.js';
 import * as hilanetParser from './services/hilanetParser.js';
@@ -106,7 +106,7 @@ async function onTokenResponse(resp) {
     localStorage.setItem('google_access_token', resp.access_token);
     gapi.client.setToken({ access_token: resp.access_token });
     updateSigninStatus(true);
-    await fetchData();
+    await fetchData(); // Fetch data only after a successful token response
 }
 
 function checkSignInStatus() {
@@ -137,7 +137,7 @@ function signOut() {
             updateSigninStatus(false);
             DOMElements.scheduleBody.innerHTML = '';
             DOMElements.scheduleTitle.textContent = 'התחבר כדי לראות את הסידור';
-            closeDifferencesModal();
+            hideDifferencesContainer(); // Hide the container on sign out
             destroyAllCharts();
         });
     }
@@ -149,7 +149,7 @@ function updateSigninStatus(isSignedIn) {
         DOMElements.signoutButton.classList.remove('hidden');
         DOMElements.appContent.classList.remove('hidden');
         updateStatus('מחובר בהצלחה!', 'success');
-        fetchData();
+        // fetchData is no longer called from here to prevent double calls
     } else {
         DOMElements.authorizeButton.classList.remove('hidden');
         DOMElements.signoutButton.classList.add('hidden');
@@ -290,14 +290,17 @@ async function handleGeminiSuggestShift() {
     }
 }
 
+// THIS IS THE CORRECTED UPLOAD HANDLING LOGIC
 async function handleUpload(file, isPdf, inputElement) {
     if (isProcessing) return;
 
+    // For images, show the date selection modal first
     if (!isPdf) {
         showImageMetadataModal(file, inputElement);
-        return;
+        return; // Stop processing until the user confirms the date
     }
 
+    // Continue with PDF processing as before
     setProcessingStatus(true);
     updateStatus('מעבד קובץ PDF...', 'loading', true);
 
@@ -336,7 +339,11 @@ async function handleUpload(file, isPdf, inputElement) {
             currentHilanetShifts = hilanetParser.structureShifts(allShifts, detectedMonth, detectedYear, employeeName);
             const googleSheetsShifts = await getAllGoogleSheetsShiftsForMaor();
             currentDifferences = hilanetParser.compareSchedules(googleSheetsShifts, currentHilanetShifts);
+            
             displayDifferences(currentDifferences);
+            if (DOMElements.differencesContainer) {
+                DOMElements.differencesContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
             updateStatus('השוואת הסידורים הושלמה!', 'success');
 
         } catch (error) {
@@ -392,9 +399,10 @@ async function handleImportSelectedHilanetShifts() {
         renderSchedule(getWeekId(DOMElements.datePicker.value));
         updateStatus(`יובאו ${importedCount} משמרות בהצלחה.`, 'success');
     }
-    closeDifferencesModal();
+    hideDifferencesContainer();
 }
 
+// --- NEW HELPER FUNCTIONS FOR IMAGE UPLOAD ---
 function showImageMetadataModal(file, inputElement) {
     const yearSelect = document.getElementById('image-year-select');
     const monthSelect = document.getElementById('image-month-select');
@@ -452,7 +460,7 @@ async function processImageWithMetadata(file, month, year, employeeName, inputEl
     try {
         const fileReader = new FileReader();
         fileReader.readAsArrayBuffer(file);
-        fileReader.onload = async () => {
+        fileReader.onload = async (e) => {
             const imageData = await new Promise((resolve) => {
                 const image = new Image();
                 const objectURL = URL.createObjectURL(file);
@@ -478,7 +486,11 @@ async function processImageWithMetadata(file, month, year, employeeName, inputEl
             currentHilanetShifts = hilanetParser.structureShifts(extractedShifts, month, year, employeeName);
             const googleSheetsShifts = await getAllGoogleSheetsShiftsForMaor();
             currentDifferences = hilanetParser.compareSchedules(googleSheetsShifts, currentHilanetShifts);
+            
             displayDifferences(currentDifferences);
+            if (DOMElements.differencesContainer) {
+                DOMElements.differencesContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
             updateStatus('השוואת הסידורים הושלמה!', 'success');
         };
     } catch (error) {
@@ -489,6 +501,8 @@ async function processImageWithMetadata(file, month, year, employeeName, inputEl
     }
 }
 
+
+// --- Initialization ---
 function initializeAppLogic() {
     DOMElements = {
         datePicker: document.getElementById('date-picker'),
@@ -525,16 +539,16 @@ function initializeAppLogic() {
         uploadHilanetBtn: document.getElementById('upload-hilanet-btn'),
         uploadImageInput: document.getElementById('upload-image-input'),
         uploadImageBtn: document.getElementById('upload-image-btn'),
-        differencesModal: document.getElementById('differences-modal'),
+        differencesContainer: document.getElementById('differences-container'), // UPDATED
         differencesDisplay: document.getElementById('differences-display'),
-        closeDifferencesModalBtn: document.getElementById('close-differences-modal-btn'),
-        customCloseDiffModalBtn: document.getElementById('custom-close-diff-modal-btn'),
+        closeDifferencesBtn: document.getElementById('close-differences-btn'), // UPDATED
         importSelectedHilanetShiftsBtn: document.getElementById('import-selected-hilanet-shifts-btn'),
         geminiSuggestionBtn: document.getElementById('gemini-suggestion-btn'),
         showChartBtn: document.getElementById('show-chart-btn'),
         chartCard: document.getElementById('chart-card'),
         monthlySummaryChartCard: document.getElementById('monthly-summary-chart-card'),
         monthlySummaryEmployeeSelect: document.getElementById('monthly-summary-employee-select'),
+        monthlySummaryMonthSelect: document.getElementById('monthly-summary-month-select'), // FIXED
         imageMetadataModal: document.getElementById('image-metadata-modal'),
         employeeSelectionModal: document.getElementById('employee-selection-modal'),
         employeeSelectionModalTitle: document.getElementById('employee-selection-modal-title'),
@@ -552,7 +566,7 @@ function initializeAppLogic() {
             return;
         }
 
-        let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // BOM for Hebrew
         csvContent += "Type,Date,Day,Shift,Current Schedule,Hilanet Schedule\n";
 
         currentDifferences.forEach(diff => {
@@ -610,14 +624,13 @@ function initializeAppLogic() {
     DOMElements.uploadHilanetInput.addEventListener('change', (e) => handleUpload(e.target.files[0], true, e.target));
     DOMElements.uploadImageBtn.addEventListener('click', () => DOMElements.uploadImageInput.click());
     DOMElements.uploadImageInput.addEventListener('change', (e) => handleUpload(e.target.files[0], false, e.target));
-    DOMElements.closeDifferencesModalBtn.addEventListener('click', closeDifferencesModal);
-    DOMElements.customCloseDiffModalBtn.addEventListener('click', closeDifferencesModal);
+    DOMElements.closeDifferencesBtn.addEventListener('click', hideDifferencesContainer); // UPDATED
     DOMElements.importSelectedHilanetShiftsBtn.addEventListener('click', handleImportSelectedHilanetShifts);
     DOMElements.sendFridaySummaryBtn.addEventListener('click', showFridaySummaryModal);
     DOMElements.summaryConfirmBtn.addEventListener('click', handleSendFridaySummary);
     DOMElements.summaryCancelBtn.addEventListener('click', closeFridaySummaryModal);
     document.getElementById('download-differences-btn').addEventListener('click', handleDownloadDifferences);
-    
+
     // Populate dropdowns
     EMPLOYEES.forEach(emp => {
         if (emp === VACATION_EMPLOYEE_REPLACEMENT) return;
@@ -627,27 +640,14 @@ function initializeAppLogic() {
         if(DOMElements.monthlySummaryEmployeeSelect) DOMElements.monthlySummaryEmployeeSelect.appendChild(option.cloneNode(true));
         if(DOMElements.vacationEmployeeSelect) DOMElements.vacationEmployeeSelect.appendChild(option.cloneNode(true));
     });
-    if(DOMElements.monthlySummaryEmployeeSelect) {
-        DOMElements.monthlySummaryEmployeeSelect.addEventListener('change', () => {
-            populateMonthSelector();
-            updateMonthlySummaryChart();
-        });
-    }
-    if(document.getElementById('monthly-summary-month-select')) {
-        document.getElementById('monthly-summary-month-select').addEventListener('change', updateMonthlySummaryChart);
-    }
-    if(document.getElementById('analyze-monthly-summary-btn')) {
-        document.getElementById('analyze-monthly-summary-btn').addEventListener('click', handleAnalyzeMonth);
-    }
-     if(document.getElementById('export-monthly-summary-btn')) {
-        document.getElementById('export-monthly-summary-btn').addEventListener('click', handleExportMonthlySummary);
-    }
+    if(DOMElements.monthlySummaryEmployeeSelect) DOMElements.monthlySummaryEmployeeSelect.addEventListener('change', updateMonthlySummaryChart);
 
     // Initial setup
     const today = new Date().toISOString().split('T')[0];
     DOMElements.datePicker.value = getWeekId(today);
     loadGoogleApiScripts();
 }
+
 function showFridaySummaryModal() {
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google.', 'info');
