@@ -844,7 +844,6 @@ body {
   inset: 0px;
   z-index: 50;
   display: flex;
-  display: none;
   align-items: center;
   justify-content: center;
   background-color: rgb(0 0 0 / var(--tw-bg-opacity, 1));
