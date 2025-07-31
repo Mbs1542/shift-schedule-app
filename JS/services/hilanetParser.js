@@ -157,10 +157,14 @@ export function structureShifts(shifts, month, year, employeeName) {
     if (!Array.isArray(shifts)) return structured;
 
     shifts.forEach(shift => {
-        // Handle format from 'hilanet-report'
-        if (shift.day && shift.entryTime && shift.exitTime) {
-            let entry = shift.entryTime;
-            let exit = shift.exitTime;
+        // Use optional chaining and nullish coalescing for flexibility
+        const entryTime = shift.entryTime || shift.start;
+        const exitTime = shift.exitTime || shift.end;
+
+        // Handle format from 'hilanet-report' or 'generic' with start/end times
+        if (shift.day && entryTime && exitTime) {
+            let entry = entryTime;
+            let exit = exitTime;
 
             // Safeguard: if entry time is later than exit time, swap them.
             if (new Date(`1970-01-01T${entry}`) > new Date(`1970-01-01T${exit}`)) {
@@ -173,12 +177,12 @@ export function structureShifts(shifts, month, year, employeeName) {
             if (!structured[dateString]) structured[dateString] = {};
             
             structured[dateString][shiftType] = {
-                employee: employeeName,
+                employee: shift.employee || employeeName,
                 start: formatTimeToHHMMSS(entry),
                 end: formatTimeToHHMMSS(exit),
             };
         } 
-        // Handle format from 'generic' schedule image
+        // Handle format from 'generic' schedule image without specific times (uses defaults)
         else if (shift.day && shift.shiftType && shift.employee) {
             const dateString = `${year}-${String(month).padStart(2, '0')}-${String(shift.day).padStart(2, '0')}`;
              if (!structured[dateString]) structured[dateString] = {};

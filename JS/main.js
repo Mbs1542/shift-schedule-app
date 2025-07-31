@@ -68,7 +68,7 @@ export function displayAPIError(err, defaultMessage) {
 }
 
 // --- NEW: Stepper UI Function ---
-function updateStepper(activeStep) {
+async function updateStepper(activeStep) {
     const stepper = document.getElementById('analysis-stepper');
     if (!stepper) return;
     
@@ -103,6 +103,8 @@ function updateStepper(activeStep) {
             span.textContent = i;
         }
     }
+    // await a short delay to ensure the UI updates before the next step
+    await new Promise(resolve => setTimeout(resolve, 100));
 }
 
 // --- GAPI / GIS Functions ---
@@ -355,7 +357,7 @@ async function handleUpload(file, isPdf, inputElement) {
     DOMElements.differencesContainer.classList.remove('hidden');
     DOMElements.differencesContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
     updateStatus('', 'info', false); 
-    updateStepper(1);
+    await updateStepper(1);
     setProcessingStatus(true);
 
     const fileReader = new FileReader();
@@ -380,7 +382,7 @@ async function handleUpload(file, isPdf, inputElement) {
                 imagePromises.push(canvas.toDataURL('image/jpeg', 0.8));
             }
 
-            updateStepper(2);
+            await updateStepper(2);
             updateStatus('שולח תמונות לניתוח AI...', 'loading', true);
             const extractionPromises = imagePromises.map(imageData =>
                 hilanetParser.callGeminiForShiftExtraction(imageData, detectedMonth, detectedYear, employeeName, 'hilanet-report')
@@ -388,7 +390,7 @@ async function handleUpload(file, isPdf, inputElement) {
 
             const allShifts = (await Promise.all(extractionPromises)).flat();
             
-            updateStepper(3);
+            await updateStepper(3);
             updateStatus('הנתונים התקבלו, מבצע השוואה...', 'loading', true);
 
             if (allShifts.length === 0) {
@@ -398,12 +400,12 @@ async function handleUpload(file, isPdf, inputElement) {
             }
 
             currentHilanetShifts = hilanetParser.structureShifts(allShifts, detectedMonth, detectedYear, employeeName);
-            const googleSheetsShifts = await getAllGoogleSheetsShiftsForMaor();
+            const googleSheetsShifts = await getAllGoogleSheetsShiftsForEmployee(employeeName);
             currentDifferences = hilanetParser.compareSchedules(googleSheetsShifts, currentHilanetShifts);
 
             displayDifferences(currentDifferences);
             updateStatus('השוואת הסידורים הושלמה!', 'success');
-            updateStepper(4); // *** NEW: Mark all steps as complete ***
+            await updateStepper(4); // *** NEW: Mark all steps as complete ***
 
         } catch (error) {
             displayAPIError(error, 'אירעה שגיאה בעיבוד הקובץ.');
@@ -421,8 +423,8 @@ async function handleUpload(file, isPdf, inputElement) {
     };
 }
 
-async function getAllGoogleSheetsShiftsForMaor() {
-    const maorShifts = {};
+async function getAllGoogleSheetsShiftsForEmployee(employeeName) {
+    const employeeShifts = {};
     if (Object.keys(allSchedules).length === 0) await fetchData();
 
     for (const weekId in allSchedules) {
@@ -435,14 +437,14 @@ async function getAllGoogleSheetsShiftsForMaor() {
 
             ['morning', 'evening'].forEach(shiftType => {
                 const shift = weekData[dayName][shiftType];
-                if (shift && shift.employee === 'מאור') {
-                    if (!maorShifts[dateString]) maorShifts[dateString] = {};
-                    maorShifts[dateString][shiftType] = { ...shift };
+                if (shift && shift.employee === employeeName) {
+                    if (!employeeShifts[dateString]) employeeShifts[dateString] = {};
+                    employeeShifts[dateString][shiftType] = { ...shift };
                 }
             });
         });
     }
-    return maorShifts;
+    return employeeShifts;
 }
 
 async function handleImportSelectedHilanetShifts() {
@@ -531,7 +533,7 @@ async function processImageWithMetadata(file, month, year, employeeName, inputEl
     DOMElements.differencesContainer.classList.remove('hidden');
     DOMElements.differencesContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
     updateStatus('', 'info', false);
-    updateStepper(1);
+    await updateStepper(1);
     setProcessingStatus(true);
 
     try {
@@ -554,11 +556,11 @@ async function processImageWithMetadata(file, month, year, employeeName, inputEl
                     image.onerror = reject;
                 });
     
-                updateStepper(2);
+                await updateStepper(2);
                 updateStatus('שולח תמונה לניתוח AI...', 'loading', true);
                 const extractedShifts = await hilanetParser.callGeminiForShiftExtraction(imageData, month, year, employeeName, 'generic');
                 
-                updateStepper(3);
+                await updateStepper(3);
                 updateStatus('הנתונים התקבלו, מבצע השוואה...', 'loading', true);
     
                 if (extractedShifts.length === 0) {
@@ -569,12 +571,12 @@ async function processImageWithMetadata(file, month, year, employeeName, inputEl
                 }
     
                 currentHilanetShifts = hilanetParser.structureShifts(extractedShifts, month, year, employeeName);
-                const googleSheetsShifts = await getAllGoogleSheetsShiftsForMaor();
+                const googleSheetsShifts = await getAllGoogleSheetsShiftsForEmployee(employeeName);
                 currentDifferences = hilanetParser.compareSchedules(googleSheetsShifts, currentHilanetShifts);
     
                 displayDifferences(currentDifferences);
                 updateStatus('השוואת הסידורים הושלמה!', 'success');
-                updateStepper(4); // *** NEW: Mark all steps as complete ***
+                await updateStepper(4); // *** NEW: Mark all steps as complete ***
             } catch (error) {
                 displayAPIError(error, 'אירעה שגיאה בעיבוד התמונה.');
                 hideDifferencesContainer();
