@@ -150,7 +150,7 @@ export async function handleExportToExcel() {
  * לאחר מכן, היא בונה גוף אימייל בפורמט HTML מעוצב המכיל טבלה של הסידור,
  * שולחת את המייל, ומנהלת את מצב כפתור השליחה (טעינה ושחזור).
  */
-export async function handleSendEmail() {
+export async function handleSendEmail(recipient) { // MODIFIED: Added recipient parameter
     // בדיקה אם המשתמש מחובר לחשבון גוגל
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי לשלוח מייל.', 'info', false);
@@ -161,7 +161,7 @@ export async function handleSendEmail() {
     setButtonLoading(button, 'שולח...'); // הצגת אנימציית טעינה בכפתור
 
     try {
-        const recipient = 'maorbens@assuta.co.il'; // נמען קבוע
+        // REMOVED: const recipient = 'maorbens@assuta.co.il'; // נמען קבוע
         const weekId = getWeekId(DOMElements.datePicker.value);
         const subject = `סידור עבודה לשבוע של ${formatDate(new Date(weekId))}`;
         let emailBodyContent = '';

@@ -313,21 +313,27 @@ async function handleGeminiSuggestShift() {
         });
 
         const prompt = `
-            You are an expert shift scheduler. Your task is to suggest one suitable employee for a specific shift based on a complex set of rules.
-            Shift to schedule: Day: ${day}, Shift: ${shiftType}.
-            Available employees: ${availableEmployees.join(', ')}.
-            Current week's schedule:
+            אתה מומחה לשיבוץ משמרות. משימתך היא להציע עובד אחד מתאים למשמרת ספציפית, תוך עמידה קפדנית בכללים מורכבים.
+
+            **פרטי המשמרת לשיבוץ:**
+            - **יום:** ${day}
+            - **סוג משמרת:** ${shiftType === 'morning' ? 'בוקר' : 'ערב'}
+
+            **מידע רלוונטי:**
+            - **עובדים זמינים:** ${availableEmployees.join(', ')}
+            - **עובד שעבד בשישי שעבר:** ${lastFridayWorker}
+            - **סידור השבוע הנוכחי:**
             ${scheduleContext}
-            Additional info: The employee who worked last Friday morning was ${lastFridayWorker}.
 
-            Strict rules:
-            1. No double shifts on the same day.
-            2. An employee working Friday morning cannot work Thursday evening before it.
-            3. If scheduling for Friday morning, the chosen employee cannot work more than 4 morning shifts and 2 evening shifts in total that week.
-            4. If scheduling for Thursday evening, the chosen employee cannot work on Friday at all, and no more than 3 evening shifts and 2 morning shifts that week.
-            5. Friday rotation: When scheduling for Friday morning, you must not assign the employee who worked last Friday morning (${lastFridayWorker}).
+            **חוקים מחמירים שיש לעקוב אחריהם ללא יוצא מן הכלל:**
+            1.  **איסור כפילות:** אסור לשבץ עובד לשתי משמרות באותו היום.
+            2.  **חוק חמישי-שישי:** עובד המשובץ למשמרת בוקר ביום שישי, אינו יכול לעבוד במשמרת ערב ביום חמישי שלפניו.
+            3.  **מגבלות שיבוץ ליום שישי בוקר:** אם השיבוץ הוא ליום שישי בוקר, העובד הנבחר לא יכול לחרוג מ-4 משמרות בוקר ו-2 משמרות ערב בסך הכל באותו שבוע.
+            4.  **מגבלות שיבוץ ליום חמישי ערב:** אם השיבוץ הוא ליום חמישי ערב, העובד הנבחר אינו יכול לעבוד כלל ביום שישי, ולא יכול לחרוג מ-3 משמרות ערב ו-2 משמרות בוקר באותו שבוע.
+            5.  **סבב שישי:** בעת שיבוץ לבוקר יום שישי, חובה לא לשבץ את העובד שעבד בשישי שעבר (${lastFridayWorker}).
 
-            Based on all data and rules, who is the most suitable employee? Respond with only the employee's name. If no employee fits all rules, respond with "אף אחד".
+            **הפלט הנדרש:**
+            עליך להחזיר **אך ורק** את שם העובד המתאים ביותר. אם אף עובד אינו עומד בכל החוקים, החזר את התשובה "אף אחד".
         `;
 
         updateStatus('מבקש הצעת שיבוץ מ-Gemini...', 'loading', true);
