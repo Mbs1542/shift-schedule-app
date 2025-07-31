@@ -1,4 +1,3 @@
-// JS/main.js - FULL AND CORRECTED CODE
 import { fetchData, handleCreateCalendarEvents, handleDeleteCalendarEvents, initializeGapiClient, saveFullSchedule } from './Api/googleApi.js';
 import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts, handleExportMonthlySummary, handleAnalyzeMonth, populateMonthSelector } from './components/charts.js';
 import { closeDifferencesModal, closeModal, closeVacationModal, displayDifferences, handleModalSave, showEmployeeSelectionModal, showVacationModal } from './components/modal.js';
@@ -291,17 +290,14 @@ async function handleGeminiSuggestShift() {
     }
 }
 
-// THIS IS THE CORRECTED UPLOAD HANDLING LOGIC
 async function handleUpload(file, isPdf, inputElement) {
     if (isProcessing) return;
 
-    // For images, show the date selection modal first
     if (!isPdf) {
         showImageMetadataModal(file, inputElement);
-        return; // Stop processing until the user confirms the date
+        return;
     }
 
-    // Continue with PDF processing as before
     setProcessingStatus(true);
     updateStatus('מעבד קובץ PDF...', 'loading', true);
 
@@ -399,7 +395,6 @@ async function handleImportSelectedHilanetShifts() {
     closeDifferencesModal();
 }
 
-// --- NEW HELPER FUNCTIONS FOR IMAGE UPLOAD ---
 function showImageMetadataModal(file, inputElement) {
     const yearSelect = document.getElementById('image-year-select');
     const monthSelect = document.getElementById('image-month-select');
@@ -457,7 +452,7 @@ async function processImageWithMetadata(file, month, year, employeeName, inputEl
     try {
         const fileReader = new FileReader();
         fileReader.readAsArrayBuffer(file);
-        fileReader.onload = async (e) => {
+        fileReader.onload = async () => {
             const imageData = await new Promise((resolve) => {
                 const image = new Image();
                 const objectURL = URL.createObjectURL(file);
@@ -494,8 +489,6 @@ async function processImageWithMetadata(file, month, year, employeeName, inputEl
     }
 }
 
-
-// --- Initialization ---
 function initializeAppLogic() {
     DOMElements = {
         datePicker: document.getElementById('date-picker'),
@@ -559,7 +552,7 @@ function initializeAppLogic() {
             return;
         }
 
-        let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // BOM for Hebrew
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
         csvContent += "Type,Date,Day,Shift,Current Schedule,Hilanet Schedule\n";
 
         currentDifferences.forEach(diff => {
@@ -624,7 +617,7 @@ function initializeAppLogic() {
     DOMElements.summaryConfirmBtn.addEventListener('click', handleSendFridaySummary);
     DOMElements.summaryCancelBtn.addEventListener('click', closeFridaySummaryModal);
     document.getElementById('download-differences-btn').addEventListener('click', handleDownloadDifferences);
-
+    
     // Populate dropdowns
     EMPLOYEES.forEach(emp => {
         if (emp === VACATION_EMPLOYEE_REPLACEMENT) return;
@@ -634,14 +627,27 @@ function initializeAppLogic() {
         if(DOMElements.monthlySummaryEmployeeSelect) DOMElements.monthlySummaryEmployeeSelect.appendChild(option.cloneNode(true));
         if(DOMElements.vacationEmployeeSelect) DOMElements.vacationEmployeeSelect.appendChild(option.cloneNode(true));
     });
-    if(DOMElements.monthlySummaryEmployeeSelect) DOMElements.monthlySummaryEmployeeSelect.addEventListener('change', updateMonthlySummaryChart);
+    if(DOMElements.monthlySummaryEmployeeSelect) {
+        DOMElements.monthlySummaryEmployeeSelect.addEventListener('change', () => {
+            populateMonthSelector();
+            updateMonthlySummaryChart();
+        });
+    }
+    if(document.getElementById('monthly-summary-month-select')) {
+        document.getElementById('monthly-summary-month-select').addEventListener('change', updateMonthlySummaryChart);
+    }
+    if(document.getElementById('analyze-monthly-summary-btn')) {
+        document.getElementById('analyze-monthly-summary-btn').addEventListener('click', handleAnalyzeMonth);
+    }
+     if(document.getElementById('export-monthly-summary-btn')) {
+        document.getElementById('export-monthly-summary-btn').addEventListener('click', handleExportMonthlySummary);
+    }
 
     // Initial setup
     const today = new Date().toISOString().split('T')[0];
     DOMElements.datePicker.value = getWeekId(today);
     loadGoogleApiScripts();
 }
-
 function showFridaySummaryModal() {
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google.', 'info');
