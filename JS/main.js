@@ -540,9 +540,9 @@ function initializeAppLogic() {
         uploadHilanetBtn: document.getElementById('upload-hilanet-btn'),
         uploadImageInput: document.getElementById('upload-image-input'),
         uploadImageBtn: document.getElementById('upload-image-btn'),
-        differencesContainer: document.getElementById('differences-container'), // UPDATED
+        differencesContainer: document.getElementById('differences-container'), 
         differencesDisplay: document.getElementById('differences-display'),
-        closeDifferencesBtn: document.getElementById('close-differences-btn'), // UPDATED
+        closeDifferencesBtn: document.getElementById('close-differences-btn'), 
         importSelectedHilanetShiftsBtn: document.getElementById('import-selected-hilanet-shifts-btn'),
         geminiSuggestionBtn: document.getElementById('gemini-suggestion-btn'),
         showChartBtn: document.getElementById('show-chart-btn'),
@@ -551,6 +551,10 @@ function initializeAppLogic() {
         monthlySummaryEmployeeSelect: document.getElementById('monthly-summary-employee-select'),
         monthlySummaryMonthSelect: document.getElementById('monthly-summary-month-select'), 
         monthSelectorContainer: document.getElementById('month-selector-container'), 
+        monthlyAnalysisContainer: document.getElementById('monthly-analysis-container'), 
+        monthlyAnalysisContent: document.getElementById('monthly-analysis-content'), 
+        exportMonthlySummaryBtn: document.getElementById('export-monthly-summary-btn'), 
+        analyzeMonthlySummaryBtn: document.getElementById('analyze-monthly-summary-btn'), 
         imageMetadataModal: document.getElementById('image-metadata-modal'),
         employeeSelectionModal: document.getElementById('employee-selection-modal'),
         employeeSelectionModalTitle: document.getElementById('employee-selection-modal-title'),
