@@ -59,22 +59,6 @@
             </div>
 
             <div id="schedule-card" class="card">
-                <!-- Hourglass Loader for importing shifts -->
-                <div id="hourglass-loader" class="hidden">
-                    <p class="text-center font-semibold text-slate-600 mb-2">מייבא משמרות ושומר...</p>
-                    <div class="hourglassBackground">
-                        <div class="hourglassContainer">
-                            <div class="hourglassCurves"></div>
-                            <div class="hourglassCapTop"></div>
-                            <div class="hourglassGlassTop"></div>
-                            <div class="hourglassSand"></div>
-                            <div class="hourglassSandStream"></div>
-                            <div class="hourglassCapBottom"></div>
-                            <div class="hourglassGlass"></div>
-                        </div>
-                    </div>
-                </div>
-                
                 <h2 id="schedule-title" class="text-2xl font-semibold mb-4 text-slate-700 text-center"></h2>
                 <div class="overflow-x-auto">
                     <table id="schedule-table" class="w-full text-center text-slate-700 border-collapse">
@@ -93,6 +77,21 @@
             </div>
             
             <div id="differences-container" class="card hidden">
+                <div id="hourglass-loader" class="hidden">
+                    <p class="text-center font-semibold text-slate-600 mb-2">מייבא משמרות ושומר...</p>
+                    <div class="hourglassBackground">
+                        <div class="hourglassContainer">
+                            <div class="hourglassCurves"></div>
+                            <div class="hourglassCapTop"></div>
+                            <div class="hourglassGlassTop"></div>
+                            <div class="hourglassSand"></div>
+                            <div class="hourglassSandStream"></div>
+                            <div class="hourglassCapBottom"></div>
+                            <div class="hourglassGlass"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <ol id="analysis-stepper" class="items-center w-full space-y-4 sm:flex sm:space-x-8 sm:space-y-0 rtl:space-x-reverse hidden mb-6">
                     <li id="step-1" class="flex items-center text-gray-500 dark:text-gray-400 space-x-2.5 rtl:space-x-reverse">
                         <span class="flex items-center justify-center w-8 h-8 border rounded-full shrink-0">1</span>

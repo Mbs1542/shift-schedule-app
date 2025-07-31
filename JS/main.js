@@ -69,42 +69,49 @@ export function displayAPIError(err, defaultMessage) {
 
 // --- NEW: Stepper UI Function ---
 async function updateStepper(activeStep) {
-    const stepper = document.getElementById('analysis-stepper');
-    if (!stepper) return;
-    
-    stepper.classList.remove('hidden');
-    
-    for (let i = 1; i <= 3; i++) {
-        const step = document.getElementById(`step-${i}`);
-        const span = step.querySelector('span:first-child');
+    return new Promise(resolve => {
+        requestAnimationFrame(() => {
+            const stepper = document.getElementById('analysis-stepper');
+            if (!stepper) {
+                resolve();
+                return;
+            }
 
-        // Reset all styles first
-        step.classList.remove('text-blue-600', 'text-green-600');
-        span.classList.remove('border-blue-600', 'border-green-600', 'bg-blue-100', 'bg-green-100');
-        span.classList.add('border-gray-500');
-        if (span.firstChild && span.firstChild.tagName === 'svg') {
-           span.innerHTML = i;
-        }
+            stepper.classList.remove('hidden');
 
-        if (i < activeStep) {
-            // --- UPDATED: Completed step is now GREEN ---
-            step.classList.add('text-green-600');
-            span.classList.remove('border-gray-500');
-            span.classList.add('border-green-600', 'bg-green-100');
-            span.innerHTML = `<svg class="w-3.5 h-3.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 16 12"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 5.917 5.724 10.5 15 1.5"/></svg>`;
-        } else if (i === activeStep) {
-            // Active step remains BLUE
-            step.classList.add('text-blue-600');
-            span.classList.remove('border-gray-500');
-            span.classList.add('border-blue-600');
-            span.textContent = i;
-        } else {
-            // Future step remains GRAY
-            span.textContent = i;
-        }
-    }
-    // await a short delay to ensure the UI updates before the next step
-    await new Promise(resolve => setTimeout(resolve, 100));
+            for (let i = 1; i <= 3; i++) {
+                const step = document.getElementById(`step-${i}`);
+                if (!step) continue;
+                const span = step.querySelector('span:first-child');
+
+                // Reset all styles first
+                step.classList.remove('text-blue-600', 'text-green-600');
+                span.classList.remove('border-blue-600', 'border-green-600', 'bg-blue-100', 'bg-green-100');
+                span.classList.add('border-gray-500');
+                if (span.firstChild && span.firstChild.tagName === 'svg') {
+                span.innerHTML = i;
+                }
+
+                if (i < activeStep) {
+                    // --- UPDATED: Completed step is now GREEN ---
+                    step.classList.add('text-green-600');
+                    span.classList.remove('border-gray-500');
+                    span.classList.add('border-green-600', 'bg-green-100');
+                    span.innerHTML = `<svg class="w-3.5 h-3.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 16 12"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 5.917 5.724 10.5 15 1.5"/></svg>`;
+                } else if (i === activeStep) {
+                    // Active step remains BLUE
+                    step.classList.add('text-blue-600');
+                    span.classList.remove('border-gray-500');
+                    span.classList.add('border-blue-600');
+                    span.textContent = i;
+                } else {
+                    // Future step remains GRAY
+                    span.textContent = i;
+                }
+            }
+            resolve();
+        });
+    });
 }
 
 // --- GAPI / GIS Functions ---
@@ -356,10 +363,10 @@ async function handleUpload(file, isPdf, inputElement) {
 
     DOMElements.differencesContainer.classList.remove('hidden');
     DOMElements.differencesContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    updateStatus('', 'info', false); 
-    await updateStepper(1);
+    DOMElements.differencesDisplay.innerHTML = ''; // Clear previous results
     setProcessingStatus(true);
-
+    await updateStepper(1);
+    
     const fileReader = new FileReader();
     fileReader.readAsArrayBuffer(file);
 
@@ -405,7 +412,7 @@ async function handleUpload(file, isPdf, inputElement) {
 
             displayDifferences(currentDifferences);
             updateStatus('השוואת הסידורים הושלמה!', 'success');
-            await updateStepper(4); // *** NEW: Mark all steps as complete ***
+            await updateStepper(4); // Mark all steps as complete
 
         } catch (error) {
             displayAPIError(error, 'אירעה שגיאה בעיבוד הקובץ.');
@@ -457,25 +464,36 @@ async function handleImportSelectedHilanetShifts() {
     const selectedDifferences = currentDifferences.filter(diff => selectedDiffIds.includes(diff.id));
     const { updatedSchedules, importedCount } = hilanetParser.handleImportSelectedHilanetShifts(selectedDifferences, allSchedules);
     
-    // *** MODIFIED: Show loader and handle async save ***
-    const hourglass = document.getElementById('hourglass-loader');
     if (importedCount > 0) {
-        hideDifferencesContainer();
+        const hourglass = document.getElementById('hourglass-loader');
+        
+        // Hide table, show loader
+        DOMElements.differencesDisplay.innerHTML = '';
         if (hourglass) hourglass.classList.remove('hidden');
+        setProcessingStatus(true);
         
         try {
             allSchedules = updatedSchedules;
             await saveFullSchedule(allSchedules);
             renderSchedule(getWeekId(DOMElements.datePicker.value));
+            
+            // Re-run comparison to show remaining differences
+            const employeeName = selectedDifferences[0]?.hilanet?.employee || selectedDifferences[0]?.googleSheets?.employee;
+            if (employeeName) {
+                const googleSheetsShifts = await getAllGoogleSheetsShiftsForEmployee(employeeName);
+                currentDifferences = hilanetParser.compareSchedules(googleSheetsShifts, currentHilanetShifts);
+                displayDifferences(currentDifferences);
+            } else {
+                hideDifferencesContainer(); // Fallback if no employee name found
+            }
+
             updateStatus(`יובאו ${importedCount} משמרות בהצלחה.`, 'success');
         } catch(error) {
             displayAPIError(error, 'שגיאה בשמירת המשמרות שיובאו.');
         } finally {
             if (hourglass) hourglass.classList.add('hidden');
+            setProcessingStatus(false);
         }
-
-    } else {
-       hideDifferencesContainer();
     }
 }
 
@@ -532,9 +550,9 @@ function showImageMetadataModal(file, inputElement) {
 async function processImageWithMetadata(file, month, year, employeeName, inputElement) {
     DOMElements.differencesContainer.classList.remove('hidden');
     DOMElements.differencesContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    updateStatus('', 'info', false);
-    await updateStepper(1);
+    DOMElements.differencesDisplay.innerHTML = ''; // Clear previous results
     setProcessingStatus(true);
+    await updateStepper(1);
 
     try {
         const fileReader = new FileReader();
@@ -576,7 +594,7 @@ async function processImageWithMetadata(file, month, year, employeeName, inputEl
     
                 displayDifferences(currentDifferences);
                 updateStatus('השוואת הסידורים הושלמה!', 'success');
-                await updateStepper(4); // *** NEW: Mark all steps as complete ***
+                await updateStepper(4); // Mark all steps as complete
             } catch (error) {
                 displayAPIError(error, 'אירעה שגיאה בעיבוד התמונה.');
                 hideDifferencesContainer();
