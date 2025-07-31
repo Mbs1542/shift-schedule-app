@@ -67,6 +67,46 @@ export function displayAPIError(err, defaultMessage) {
     console.error('API Error:', err);
 }
 
+// --- NEW: Stepper UI Function ---
+function updateStepper(activeStep) {
+    const stepper = document.getElementById('analysis-stepper');
+    if (!stepper) return;
+    
+    stepper.classList.remove('hidden');
+    
+    for (let i = 1; i <= 3; i++) {
+        const step = document.getElementById(`step-${i}`);
+        const span = step.querySelector('span:first-child');
+
+        // Reset styles
+        step.classList.remove('text-blue-600');
+        span.classList.remove('border-blue-600', 'bg-blue-100');
+        span.classList.add('border-gray-500');
+        // Clear previous icon
+        if (span.firstChild && span.firstChild.tagName === 'svg') {
+           span.innerHTML = i;
+        }
+
+
+        if (i < activeStep) {
+            // Completed step
+            step.classList.add('text-blue-600');
+            span.classList.remove('border-gray-500');
+            span.classList.add('border-blue-600', 'bg-blue-100');
+            span.innerHTML = `<svg class="w-3.5 h-3.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 16 12"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 5.917 5.724 10.5 15 1.5"/></svg>`;
+        } else if (i === activeStep) {
+            // Active step
+            step.classList.add('text-blue-600');
+            span.classList.remove('border-gray-500');
+            span.classList.add('border-blue-600');
+            span.textContent = i;
+        } else {
+            // Future step
+            span.textContent = i;
+        }
+    }
+}
+
 // --- GAPI / GIS Functions ---
 function gapiLoaded() {
     gapi.load('client', async () => {
@@ -106,7 +146,7 @@ async function onTokenResponse(resp) {
     localStorage.setItem('google_access_token', resp.access_token);
     gapi.client.setToken({ access_token: resp.access_token });
     updateSigninStatus(true);
-    await fetchData(); // Fetch data only after a successful token response
+    await fetchData();
 }
 
 async function checkSignInStatus() {
@@ -138,7 +178,7 @@ function signOut() {
             updateSigninStatus(false);
             DOMElements.scheduleBody.innerHTML = '';
             DOMElements.scheduleTitle.textContent = 'התחבר כדי לראות את הסידור';
-            hideDifferencesContainer(); // Hide the container on sign out
+            hideDifferencesContainer();
             destroyAllCharts();
         });
     }
@@ -150,7 +190,6 @@ function updateSigninStatus(isSignedIn) {
         DOMElements.signoutButton.classList.remove('hidden');
         DOMElements.appContent.classList.remove('hidden');
         updateStatus('מחובר בהצלחה!', 'success');
-        // fetchData is no longer called from here to prevent double calls
     } else {
         DOMElements.authorizeButton.classList.remove('hidden');
         DOMElements.signoutButton.classList.add('hidden');
@@ -291,17 +330,16 @@ async function handleGeminiSuggestShift() {
     }
 }
 
-// THIS IS THE CORRECTED UPLOAD HANDLING LOGIC
 async function handleUpload(file, isPdf, inputElement) {
     if (isProcessing) return;
-
-    // For images, show the date selection modal first
+    
     if (!isPdf) {
         showImageMetadataModal(file, inputElement);
-        return; // Stop processing until the user confirms the date
+        return;
     }
 
-    // Continue with PDF processing as before
+    DOMElements.differencesContainer.classList.remove('hidden');
+    updateStepper(1);
     setProcessingStatus(true);
     updateStatus('מעבד קובץ PDF...', 'loading', true);
 
@@ -326,11 +364,13 @@ async function handleUpload(file, isPdf, inputElement) {
                 imagePromises.push(canvas.toDataURL('image/jpeg', 0.8));
             }
 
+            updateStepper(2);
             const extractionPromises = imagePromises.map(imageData =>
                 hilanetParser.callGeminiForShiftExtraction(imageData, detectedMonth, detectedYear, employeeName, 'hilanet-report')
             );
 
             const allShifts = (await Promise.all(extractionPromises)).flat();
+            updateStepper(3);
 
             if (allShifts.length === 0) {
                 updateStatus('לא נמצאו משמרות לניתוח בקובץ.', 'info');
@@ -403,7 +443,6 @@ async function handleImportSelectedHilanetShifts() {
     hideDifferencesContainer();
 }
 
-// --- NEW HELPER FUNCTIONS FOR IMAGE UPLOAD ---
 function showImageMetadataModal(file, inputElement) {
     const yearSelect = document.getElementById('image-year-select');
     const monthSelect = document.getElementById('image-month-select');
@@ -455,6 +494,8 @@ function showImageMetadataModal(file, inputElement) {
 }
 
 async function processImageWithMetadata(file, month, year, employeeName, inputElement) {
+    DOMElements.differencesContainer.classList.remove('hidden');
+    updateStepper(1);
     setProcessingStatus(true);
     updateStatus('מעבד קובץ תמונה...', 'loading', true);
 
@@ -476,7 +517,9 @@ async function processImageWithMetadata(file, month, year, employeeName, inputEl
                 };
             });
 
+            updateStepper(2);
             const extractedShifts = await hilanetParser.callGeminiForShiftExtraction(imageData, month, year, employeeName, 'generic');
+            updateStepper(3);
 
             if (extractedShifts.length === 0) {
                 updateStatus('לא נמצאו משמרות לניתוח בתמונה.', 'info');
@@ -641,7 +684,6 @@ function initializeAppLogic() {
         DOMElements.monthlySummaryEmployeeSelect.addEventListener('change', () => {
             populateMonthSelector();
             updateMonthlySummaryChart();
-            // This is the key change: we re-apply the listeners every time the employee changes
             setupMonthlyChartEventListeners();
         });
     }
@@ -682,6 +724,7 @@ async function handleSendFridaySummary() {
     closeFridaySummaryModal();
     await sendFridaySummaryEmail(startDate, endDate);
 }
+
 export function setupMonthlyChartEventListeners() {
     const monthSelect = DOMElements.monthlySummaryMonthSelect;
     if (monthSelect) {
