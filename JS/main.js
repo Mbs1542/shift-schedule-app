@@ -477,10 +477,43 @@ function initializeAppLogic() {
         analyzeMonthlySummaryBtn: document.getElementById('analyze-monthly-summary-btn'),
         monthlyAnalysisContainer: document.getElementById('monthly-analysis-container'),
         monthlyAnalysisContent: document.getElementById('monthly-analysis-content'),
-        // ### שינוי: נוספו אלמנטים חדשים ###
         monthSelectorContainer: document.getElementById('month-selector-container'),
         monthlySummaryMonthSelect: document.getElementById('monthly-summary-month-select'),
     };
+
+    // --- Helper function definition ---
+    function handleDownloadDifferences() {
+        if (currentDifferences.length === 0) {
+            updateStatus('אין פערים להורדה.', 'info');
+            return;
+        }
+
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // BOM for Hebrew
+        csvContent += "Type,Date,Day,Shift,Current Schedule,Hilanet Schedule\n";
+
+        currentDifferences.forEach(diff => {
+            const formatDetails = (shift) => shift ? `"${shift.employee} (${shift.start.substring(0, 5)}-${shift.end.substring(0, 5)})"` : '""';
+            const row = [
+                diff.type,
+                diff.date,
+                diff.dayName,
+                diff.shiftType,
+                formatDetails(diff.googleSheets),
+                formatDetails(diff.hilanet)
+            ].join(",");
+            csvContent += row + "\n";
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "schedule_differences.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        updateStatus('מסמך הפערים יוצא בהצלחה.', 'success');
+    }
+
 
     function loadGoogleApiScripts() {
         const gapiScript = document.createElement('script');
@@ -524,7 +557,6 @@ function initializeAppLogic() {
     DOMElements.exportMonthlySummaryBtn.addEventListener('click', handleExportMonthlySummary);
     DOMElements.analyzeMonthlySummaryBtn.addEventListener('click', handleAnalyzeMonth);
 
-    // ### שינוי: לוגיקה חדשה עבור בחירת עובד וחודש ###
     DOMElements.monthlySummaryEmployeeSelect.addEventListener('change', () => {
         populateMonthSelector();
         updateMonthlySummaryChart();
