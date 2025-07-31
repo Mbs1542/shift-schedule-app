@@ -2,8 +2,6 @@ import { getWeekId, DAYS } from '../utils.js';
 
 /**
  * Ensures a time string is always in HH:MM:SS format.
- * @param {string} timeString - The time string to format (e.g., "7:00" or "13:00:00").
- * @returns {string} Formatted time string (e.g., "07:00:00").
  */
 function formatTimeToHHMMSS(timeString) {
     if (!timeString || !timeString.includes(':')) {
@@ -17,9 +15,7 @@ function formatTimeToHHMMSS(timeString) {
 }
 
 /**
- * Cleans text extracted from a PDF for metadata purposes.
- * @param {string} text - The raw text from the PDF.
- * @returns {string} Cleaned text ready for processing.
+ * Cleans and normalizes text extracted from a PDF.
  */
 function normalizeText(text) {
     if (!text) return '';
@@ -31,8 +27,6 @@ function normalizeText(text) {
 
 /**
  * Extracts the employee's name from the cleaned text.
- * @param {string} cleanedText - The normalized text.
- * @returns {string|null} The found employee name or null.
  */
 function extractEmployeeName(cleanedText) {
     const employeeNamePatterns = [
@@ -48,9 +42,7 @@ function extractEmployeeName(cleanedText) {
 }
 
 /**
- * Extracts the month and year from the text for metadata.
- * @param {string} cleanedText - The cleaned text.
- * @returns {{month: number, year: number}} An object with the month and year.
+ * Extracts the month and year from the text.
  */
 function extractDate(cleanedText) {
     const dateMatch = cleanedText.match(/לחודש\s+(\d{1,2})\s*\/\s*(\d{2,4})/);
@@ -66,9 +58,7 @@ function extractDate(cleanedText) {
 }
 
 /**
- * Processes text from a PDF to extract metadata only (name, month, year).
- * @param {string} rawText - The raw text from the PDF.
- * @returns {Object} An object containing the employee's name, month, and year.
+ * Processes raw text from a PDF to extract metadata (name, month, year).
  */
 export function processHilanetData(rawText) {
     const cleanedText = normalizeText(rawText);
@@ -83,7 +73,6 @@ export function processHilanetData(rawText) {
 }
 
 
-// Prompts are improved for clarity and to ensure consistent output.
 const PROMPT_TEMPLATES = {
     'hilanet-report': (employeeName, month, year) => `
         You are an expert at extracting structured data from Hebrew 'Hilanet' attendance reports.
@@ -150,7 +139,8 @@ export async function callGeminiForShiftExtraction(imageData, month, year, emplo
 
 
 /**
- * Organizes shifts extracted by Gemini into a structured object, with a safeguard for swapped times.
+ * Organizes shifts extracted by Gemini into a structured object.
+ * *** MODIFIED: Added .trim() to employee names to ensure data consistency. ***
  */
 export function structureShifts(shifts, month, year, employeeName) {
     const structured = {};
@@ -174,7 +164,8 @@ export function structureShifts(shifts, month, year, employeeName) {
             if (!structured[dateString]) structured[dateString] = {};
             
             structured[dateString][shiftType] = {
-                employee: shift.employee || employeeName,
+                 // **FIX**: Trim the employee name to prevent whitespace issues.
+                employee: (shift.employee || employeeName)?.trim(),
                 start: formatTimeToHHMMSS(entry),
                 end: formatTimeToHHMMSS(exit),
             };
@@ -183,7 +174,8 @@ export function structureShifts(shifts, month, year, employeeName) {
             const dateString = `${year}-${String(month).padStart(2, '0')}-${String(shift.day).padStart(2, '0')}`;
              if (!structured[dateString]) structured[dateString] = {};
             structured[dateString][shift.shiftType] = {
-                employee: shift.employee,
+                // **FIX**: Trim the employee name.
+                employee: shift.employee?.trim(),
                 start: shift.start ? formatTimeToHHMMSS(shift.start) : '00:00:00',
                 end: shift.end ? formatTimeToHHMMSS(shift.end) : '00:00:00',
             };
@@ -230,12 +222,7 @@ export function compareSchedules(googleSheetsShifts, hilanetShifts) {
 }
 
 /**
- * *** MODIFIED: Handles the import of selected shifts from the comparison. ***
- * A new rule was added to filter out any differences that fall on a Saturday ('שבת')
- * before attempting to import them. This prevents the bug of adding shifts on non-working days.
- * @param {Array} selectedDifferences - The array of difference objects selected by the user.
- * @param {Object} allSchedules - The main schedules data store.
- * @returns {{updatedSchedules: Object, importedCount: number}} - The updated schedule object and a count of imported shifts.
+ * Handles the import of selected shifts, filtering out shifts on Shabbat.
  */
 export function handleImportSelectedHilanetShifts(selectedDifferences, allSchedules) {
     if (!selectedDifferences || selectedDifferences.length === 0) {
@@ -245,7 +232,6 @@ export function handleImportSelectedHilanetShifts(selectedDifferences, allSchedu
     let importedCount = 0;
     const newSchedules = JSON.parse(JSON.stringify(allSchedules));
 
-    // **CRITICAL FIX**: Filter out any shifts on Saturday before processing.
     const validDifferencesToImport = selectedDifferences.filter(diff => {
         return diff.dayName !== 'שבת' && (diff.type === 'added' || diff.type === 'changed');
     });
@@ -257,7 +243,6 @@ export function handleImportSelectedHilanetShifts(selectedDifferences, allSchedu
         if (!newSchedules[weekId]) newSchedules[weekId] = {};
         if (!newSchedules[weekId][dayName]) newSchedules[weekId][dayName] = {};
 
-        // Import the shift from Hilanet data
         newSchedules[weekId][dayName][diff.shiftType] = diff.hilanet;
         importedCount++;
     });

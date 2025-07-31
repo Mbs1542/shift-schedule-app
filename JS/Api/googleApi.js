@@ -1,11 +1,10 @@
 import { SPREADSHEET_ID, SHEET_NAME, DAYS } from "../config.js";
 import { displayAPIError, allSchedules, DOMElements, updateStatus, allCreatedCalendarEvents } from "../main.js";
 import { renderSchedule } from '../components/schedule.js';
-// ייבוא כל הפונקציות הנדרשות מהקוד החדש והישן
-import { getWeekDates, getWeekId, createMessage, showCustomConfirmation, setButtonLoading, restoreButton } from "../utils.js";
+import { getWeekDates, getWeekId, createMessage, setButtonLoading, restoreButton } from "../utils.js";
 
 /**
- * מאתחל את ה-GAPI client (מהקוד הישן).
+ * Initializes the GAPI client for Sheets, Gmail, and Calendar.
  */
 export async function initializeGapiClient() {
     try {
@@ -22,7 +21,8 @@ export async function initializeGapiClient() {
 }
 
 /**
- * טוען נתונים מ-Google Sheets עם הלוגיקה המלאה מהקוד הישן.
+ * Fetches all schedule data from the Google Sheet.
+ * *** MODIFIED: Added .trim() when reading employee names to prevent whitespace issues. ***
  */
 export async function fetchData() {
     if (gapi.client.getToken() === null) {
@@ -40,7 +40,6 @@ export async function fetchData() {
             range: `${SHEET_NAME}!A:F`,
         });
 
-        // --- התחלת לוגיקה מהקוד הישן ---
         const values = response.result.values;
         Object.keys(allSchedules).forEach(key => delete allSchedules[key]);
 
@@ -48,7 +47,7 @@ export async function fetchData() {
             console.log('No data found.');
             updateStatus('לא נמצאו נתונים בגיליון. ניתן להתחיל להוסיף משמרות.', 'info');
             renderSchedule(getWeekId(DOMElements.datePicker.value));
-            return; // היציאה המוקדמת תפעיל את בלוק ה-finally
+            return;
         }
 
         const headers = values[0];
@@ -66,7 +65,8 @@ export async function fetchData() {
             const weekId = row[weekIdIndex];
             const day = row[dayIndex];
             const shiftType = row[shiftTypeIndex];
-            const employee = row[employeeIndex];
+            // **FIX**: Use optional chaining and trim the employee name to prevent errors from empty cells or whitespace.
+            const employee = row[employeeIndex]?.trim(); 
             const start = row[startTimeIndex];
             const end = row[endTimeIndex];
 
@@ -80,7 +80,6 @@ export async function fetchData() {
         const currentWeekId = getWeekId(DOMElements.datePicker.value);
         renderSchedule(currentWeekId);
         updateStatus('הנתונים נטענו בהצלחה!', 'success');
-        // --- סוף לוגיקה מהקוד הישן ---
 
     } catch (err) {
         console.error('Error fetching data from Google Sheets:', err);
@@ -92,7 +91,8 @@ export async function fetchData() {
 }
 
 /**
- * שומר את כל סידור העבודה ל-Google Sheets (מהקוד הישן).
+ * Saves the entire schedule object to the Google Sheet.
+ * *** MODIFIED: Added .trim() when writing employee names to ensure data cleanliness. ***
  */
 export async function saveFullSchedule(fullScheduleData) {
     if (gapi.client.getToken() === null) {
@@ -115,13 +115,15 @@ export async function saveFullSchedule(fullScheduleData) {
 
             for (const day of sortedDays) {
                 const dayData = scheduleDataForWeek[day];
-                if (dayData.morning && dayData.morning.employee !== 'none') {
+                if (dayData.morning && dayData.morning.employee && dayData.morning.employee !== 'none') {
                     const shift = dayData.morning;
-                    dataToWrite.push([weekId, day, 'morning', shift.employee, shift.start, shift.end]);
+                    // **FIX**: Trim the employee name before saving.
+                    dataToWrite.push([weekId, day, 'morning', shift.employee.trim(), shift.start, shift.end]);
                 }
-                if (dayData.evening && dayData.evening.employee !== 'none') {
+                if (dayData.evening && dayData.evening.employee && dayData.evening.employee !== 'none') {
                     const shift = dayData.evening;
-                    dataToWrite.push([weekId, day, 'evening', shift.employee, shift.start, shift.end]);
+                    // **FIX**: Trim the employee name before saving.
+                    dataToWrite.push([weekId, day, 'evening', shift.employee.trim(), shift.start, shift.end]);
                 }
             }
         }
@@ -149,7 +151,7 @@ export async function saveFullSchedule(fullScheduleData) {
 
 
 /**
- * שולח אימייל עם Gmail API.
+ * Sends an email using the Gmail API.
  */
 export async function sendEmailWithGmailApi(to, subject, messageBody) {
     if (gapi.client.getToken() === null) {
@@ -166,13 +168,12 @@ export async function sendEmailWithGmailApi(to, subject, messageBody) {
         updateStatus('המייל נשלח בהצלחה!', 'success', false);
     } catch (err) {
         displayAPIError(err, 'שגיאה בשליחת המייל דרך Gmail API');
-        // זריקה מחדש כדי שפונקציה קוראת תוכל לתפוס את השגיאה במידת הצורך
         throw err;
     }
 }
 
 /**
- * יוצר אירועים ביומן גוגל עם הלוגיקה המלאה מהקוד הישן.
+ * Creates events in Google Calendar.
  */
 export async function handleCreateCalendarEvents(selectedEmployees) {
     if (gapi.client.getToken() === null) {
@@ -187,12 +188,11 @@ export async function handleCreateCalendarEvents(selectedEmployees) {
     const button = DOMElements.createCalendarEventsBtn;
     setButtonLoading(button, 'יוצר...');
     try {
-        // --- התחלת לוגיקה מהקוד הישן ---
         const weekId = getWeekId(DOMElements.datePicker.value);
         const scheduleDataForWeek = allSchedules[weekId];
         if (!scheduleDataForWeek) {
             updateStatus('אין נתוני סידור לשבוע זה.', 'info');
-            return; // יציאה מוקדמת תפעיל את finally
+            return; 
         }
 
         updateStatus(`יוצר אירועי יומן עבור ${selectedEmployees.join(', ')}...`, 'loading', true);
@@ -226,17 +226,15 @@ export async function handleCreateCalendarEvents(selectedEmployees) {
                 }
             });
         });
-        // --- סוף לוגיקה מהקוד הישן ---
 
         if (creationTasks.length === 0) {
             updateStatus('לא נמצאו משמרות לעובדים הנבחרים.', 'info');
-            return; // יציאה מוקדמת תפעיל את finally
+            return;
         }
 
         const promises = creationTasks.map(task => task.promise);
         const results = await Promise.all(promises);
         
-        // --- התחלת לוגיקה מהקוד הישן ---
         results.forEach((response, index) => {
             const createdEvent = response.result;
             if (createdEvent && createdEvent.id) {
@@ -246,7 +244,6 @@ export async function handleCreateCalendarEvents(selectedEmployees) {
         });
 
         console.log("אירועים שנוצרו ונשמרו:", allCreatedCalendarEvents);
-        // --- סוף לוגיקה מהקוד הישן ---
         updateStatus(`נוצרו בהצלחה ${results.length} אירועי יומן!`, 'success');
 
     } catch (err) {
@@ -257,7 +254,7 @@ export async function handleCreateCalendarEvents(selectedEmployees) {
 }
 
 /**
- * מוחק אירועים מיומן גוגל עם הלוגיקה המלאה מהקוד הישן.
+ * Deletes events from Google Calendar.
  */
 export async function handleDeleteCalendarEvents(selectedEmployees) {
     if (gapi.client.getToken() === null) {
@@ -272,12 +269,11 @@ export async function handleDeleteCalendarEvents(selectedEmployees) {
     const button = DOMElements.deleteCalendarEventsBtn;
     setButtonLoading(button, 'מוחק...');
     try {
-        // --- התחלת לוגיקה מהקוד הישן ---
         const weekId = getWeekId(DOMElements.datePicker.value);
         const scheduleDataForWeek = allSchedules[weekId];
         if (!scheduleDataForWeek) {
             updateStatus('אין נתוני סידור לשבוע זה.', 'info');
-            return; // יציאה מוקדמת תפעיל את finally
+            return;
         }
 
         const deletionPromises = [];
@@ -301,33 +297,28 @@ export async function handleDeleteCalendarEvents(selectedEmployees) {
                 }
             });
         });
-        // --- סוף לוגיקה מהקוד הישן ---
 
         if (deletionPromises.length === 0) {
             updateStatus('לא נמצאו אירועי יומן שמורים למחיקה עבור העובדים הנבחרים.', 'info');
-            return; // יציאה מוקדמת תפעיל את finally
+            return;
         }
 
         updateStatus(`מוחק ${deletionPromises.length} אירועים...`, 'loading', true);
         await Promise.all(deletionPromises);
 
-        // --- התחלת לוגיקה מהקוד הישן ---
         keysToDelete.forEach(key => {
             delete allCreatedCalendarEvents[key];
         });
         
         console.log("אירועים שנותרו לאחר המחיקה:", allCreatedCalendarEvents);
-        // --- סוף לוגיקה מהקוד הישן ---
         updateStatus(`נמחקו בהצלחה ${deletionPromises.length} אירועי יומן!`, 'success');
 
     } catch (err) {
-        // --- התחלת לוגיקה מהקוד הישן ---
         if (err.result && err.result.error.code === 410) {
             updateStatus('חלק מהאירועים כבר נמחקו בעבר. הרשימה נוקתה.', 'info');
         } else {
             displayAPIError(err, 'אירעו שגיאות במחיקת אירועי יומן.');
         }
-        // --- סוף לוגיקה מהקוד הישן ---
     } finally {
         restoreButton(button);
     }

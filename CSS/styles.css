@@ -578,14 +578,16 @@ h1:is(.dark *), h2:is(.dark *), h3:is(.dark *), h4:is(.dark *), h5:is(.dark *), 
   color: rgb(226 232 240 / var(--tw-text-opacity, 1));
 }
 
-p, label, span, div {
+/* Default text color for dark mode */
+
+p, label, span, div, td, th {
   --tw-text-opacity: 1;
-  color: rgb(71 85 105 / var(--tw-text-opacity, 1));
+  color: rgb(51 65 85 / var(--tw-text-opacity, 1));
 }
 
-p:is(.dark *), label:is(.dark *), span:is(.dark *), div:is(.dark *) {
+p:is(.dark *), label:is(.dark *), span:is(.dark *), div:is(.dark *), td:is(.dark *), th:is(.dark *) {
   --tw-text-opacity: 1;
-  color: rgb(148 163 184 / var(--tw-text-opacity, 1));
+  color: rgb(203 213 225 / var(--tw-text-opacity, 1));
 }
 
 .\!container {
@@ -714,6 +716,8 @@ p:is(.dark *), label:is(.dark *), span:is(.dark *), div:is(.dark *) {
   opacity: 0.5;
 }
 
+/* --- MODIFIED: Dark mode styles for all buttons --- */
+
 .btn-blue {
   --tw-border-opacity: 1;
   border-color: rgb(29 78 216 / var(--tw-border-opacity, 1));
@@ -733,9 +737,21 @@ p:is(.dark *), label:is(.dark *), span:is(.dark *), div:is(.dark *) {
   --tw-ring-color: rgb(147 197 253 / var(--tw-ring-opacity, 1));
 }
 
+.btn-blue:is(.dark *) {
+  --tw-border-opacity: 1;
+  border-color: rgb(30 64 175 / var(--tw-border-opacity, 1));
+  --tw-bg-opacity: 1;
+  background-color: rgb(37 99 235 / var(--tw-bg-opacity, 1));
+}
+
+.btn-blue:hover:is(.dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(29 78 216 / var(--tw-bg-opacity, 1));
+}
+
 .btn-blue:focus:is(.dark *) {
   --tw-ring-opacity: 1;
-  --tw-ring-color: rgb(30 64 175 / var(--tw-ring-opacity, 1));
+  --tw-ring-color: rgb(59 130 246 / var(--tw-ring-opacity, 1));
 }
 
 .btn-red {
@@ -757,9 +773,21 @@ p:is(.dark *), label:is(.dark *), span:is(.dark *), div:is(.dark *) {
   --tw-ring-color: rgb(252 165 165 / var(--tw-ring-opacity, 1));
 }
 
+.btn-red:is(.dark *) {
+  --tw-border-opacity: 1;
+  border-color: rgb(153 27 27 / var(--tw-border-opacity, 1));
+  --tw-bg-opacity: 1;
+  background-color: rgb(220 38 38 / var(--tw-bg-opacity, 1));
+}
+
+.btn-red:hover:is(.dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(185 28 28 / var(--tw-bg-opacity, 1));
+}
+
 .btn-red:focus:is(.dark *) {
   --tw-ring-opacity: 1;
-  --tw-ring-color: rgb(153 27 27 / var(--tw-ring-opacity, 1));
+  --tw-ring-color: rgb(239 68 68 / var(--tw-ring-opacity, 1));
 }
 
 .btn-green {
@@ -781,9 +809,21 @@ p:is(.dark *), label:is(.dark *), span:is(.dark *), div:is(.dark *) {
   --tw-ring-color: rgb(134 239 172 / var(--tw-ring-opacity, 1));
 }
 
+.btn-green:is(.dark *) {
+  --tw-border-opacity: 1;
+  border-color: rgb(22 101 52 / var(--tw-border-opacity, 1));
+  --tw-bg-opacity: 1;
+  background-color: rgb(22 163 74 / var(--tw-bg-opacity, 1));
+}
+
+.btn-green:hover:is(.dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(21 128 61 / var(--tw-bg-opacity, 1));
+}
+
 .btn-green:focus:is(.dark *) {
   --tw-ring-opacity: 1;
-  --tw-ring-color: rgb(22 101 52 / var(--tw-ring-opacity, 1));
+  --tw-ring-color: rgb(34 197 94 / var(--tw-ring-opacity, 1));
 }
 
 .btn-purple {
@@ -805,9 +845,21 @@ p:is(.dark *), label:is(.dark *), span:is(.dark *), div:is(.dark *) {
   --tw-ring-color: rgb(216 180 254 / var(--tw-ring-opacity, 1));
 }
 
+.btn-purple:is(.dark *) {
+  --tw-border-opacity: 1;
+  border-color: rgb(107 33 168 / var(--tw-border-opacity, 1));
+  --tw-bg-opacity: 1;
+  background-color: rgb(147 51 234 / var(--tw-bg-opacity, 1));
+}
+
+.btn-purple:hover:is(.dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(126 34 206 / var(--tw-bg-opacity, 1));
+}
+
 .btn-purple:focus:is(.dark *) {
   --tw-ring-opacity: 1;
-  --tw-ring-color: rgb(107 33 168 / var(--tw-ring-opacity, 1));
+  --tw-ring-color: rgb(168 85 247 / var(--tw-ring-opacity, 1));
 }
 
 .btn-orange {
@@ -829,9 +881,21 @@ p:is(.dark *), label:is(.dark *), span:is(.dark *), div:is(.dark *) {
   --tw-ring-color: rgb(253 186 116 / var(--tw-ring-opacity, 1));
 }
 
+.btn-orange:is(.dark *) {
+  --tw-border-opacity: 1;
+  border-color: rgb(154 52 18 / var(--tw-border-opacity, 1));
+  --tw-bg-opacity: 1;
+  background-color: rgb(234 88 12 / var(--tw-bg-opacity, 1));
+}
+
+.btn-orange:hover:is(.dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(194 65 12 / var(--tw-bg-opacity, 1));
+}
+
 .btn-orange:focus:is(.dark *) {
   --tw-ring-opacity: 1;
-  --tw-ring-color: rgb(154 52 18 / var(--tw-ring-opacity, 1));
+  --tw-ring-color: rgb(249 115 22 / var(--tw-ring-opacity, 1));
 }
 
 .btn-cyan {
@@ -853,9 +917,21 @@ p:is(.dark *), label:is(.dark *), span:is(.dark *), div:is(.dark *) {
   --tw-ring-color: rgb(103 232 249 / var(--tw-ring-opacity, 1));
 }
 
+.btn-cyan:is(.dark *) {
+  --tw-border-opacity: 1;
+  border-color: rgb(21 94 117 / var(--tw-border-opacity, 1));
+  --tw-bg-opacity: 1;
+  background-color: rgb(8 145 178 / var(--tw-bg-opacity, 1));
+}
+
+.btn-cyan:hover:is(.dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(14 116 144 / var(--tw-bg-opacity, 1));
+}
+
 .btn-cyan:focus:is(.dark *) {
   --tw-ring-opacity: 1;
-  --tw-ring-color: rgb(21 94 117 / var(--tw-ring-opacity, 1));
+  --tw-ring-color: rgb(6 182 212 / var(--tw-ring-opacity, 1));
 }
 
 .btn-slate {
@@ -895,6 +971,8 @@ p:is(.dark *), label:is(.dark *), span:is(.dark *), div:is(.dark *) {
   --tw-ring-opacity: 1;
   --tw-ring-color: rgb(100 116 139 / var(--tw-ring-opacity, 1));
 }
+
+/* --- End of button modifications --- */
 
 /* From Uiverse.io by SouravBandyopadhyay - Hourglass Loader */
 
@@ -1212,10 +1290,6 @@ p:is(.dark *), label:is(.dark *), span:is(.dark *), div:is(.dark *) {
   }
 }
 
-.visible {
-  visibility: visible;
-}
-
 .collapse {
   visibility: collapse;
 }
@@ -1315,6 +1389,10 @@ p:is(.dark *), label:is(.dark *), span:is(.dark *), div:is(.dark *) {
 
 .table {
   display: table;
+}
+
+.grid {
+  display: grid;
 }
 
 .hidden {

@@ -9,8 +9,9 @@
     h1, h2, h3, h4, h5, h6 {
         @apply text-slate-800 dark:text-slate-200;
     }
-    p, label, span, div {
-         @apply text-slate-600 dark:text-slate-400;
+    /* Default text color for dark mode */
+    p, label, span, div, td, th {
+         @apply text-slate-700 dark:text-slate-300;
     }
 }
 
@@ -23,46 +24,47 @@
     @apply inline-flex items-center justify-center font-semibold py-2.5 px-5 rounded-lg border-b-4 transition-all duration-150 ease-in-out focus:outline-none focus:ring-4 active:translate-y-0.5 active:border-b-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:border-b-4;
   }
 
+  /* --- MODIFIED: Dark mode styles for all buttons --- */
   .btn-blue {
-    @apply bg-blue-500 text-white border-blue-700 hover:bg-blue-600 focus:ring-blue-300 dark:focus:ring-blue-800;
+    @apply bg-blue-500 text-white border-blue-700 hover:bg-blue-600 focus:ring-blue-300 
+           dark:bg-blue-600 dark:border-blue-800 dark:hover:bg-blue-700 dark:focus:ring-blue-500;
   }
 
   .btn-red {
-    @apply bg-red-500 text-white border-red-700 hover:bg-red-600 focus:ring-red-300 dark:focus:ring-red-800;
+    @apply bg-red-500 text-white border-red-700 hover:bg-red-600 focus:ring-red-300
+           dark:bg-red-600 dark:border-red-800 dark:hover:bg-red-700 dark:focus:ring-red-500;
   }
 
   .btn-green {
-    @apply bg-green-500 text-white border-green-700 hover:bg-green-600 focus:ring-green-300 dark:focus:ring-green-800;
+    @apply bg-green-500 text-white border-green-700 hover:bg-green-600 focus:ring-green-300
+           dark:bg-green-600 dark:border-green-800 dark:hover:bg-green-700 dark:focus:ring-green-500;
   }
 
   .btn-purple {
-    @apply bg-purple-500 text-white border-purple-700 hover:bg-purple-600 focus:ring-purple-300 dark:focus:ring-purple-800;
+    @apply bg-purple-500 text-white border-purple-700 hover:bg-purple-600 focus:ring-purple-300
+           dark:bg-purple-600 dark:border-purple-800 dark:hover:bg-purple-700 dark:focus:ring-purple-500;
   }
   
   .btn-orange {
-    @apply bg-orange-500 text-white border-orange-700 hover:bg-orange-600 focus:ring-orange-300 dark:focus:ring-orange-800;
+    @apply bg-orange-500 text-white border-orange-700 hover:bg-orange-600 focus:ring-orange-300
+           dark:bg-orange-600 dark:border-orange-800 dark:hover:bg-orange-700 dark:focus:ring-orange-500;
   }
   
   .btn-cyan {
-      @apply bg-cyan-400 text-white border-cyan-600 hover:bg-cyan-500 focus:ring-cyan-300 dark:focus:ring-cyan-800;
+      @apply bg-cyan-400 text-white border-cyan-600 hover:bg-cyan-500 focus:ring-cyan-300
+             dark:bg-cyan-600 dark:border-cyan-800 dark:hover:bg-cyan-700 dark:focus:ring-cyan-500;
   }
 
   .btn-slate {
-      @apply bg-slate-200 text-slate-800 border-slate-400 hover:bg-slate-300 focus:ring-slate-400 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-500 dark:hover:bg-slate-600 dark:focus:ring-slate-500;
+      @apply bg-slate-200 text-slate-800 border-slate-400 hover:bg-slate-300 focus:ring-slate-400 
+             dark:bg-slate-700 dark:text-slate-200 dark:border-slate-500 dark:hover:bg-slate-600 dark:focus:ring-slate-500;
   }
-
-  .custom-modal {
-      @apply fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4;
-  }
+  /* --- End of button modifications --- */
 
   .custom-modal-content {
       @apply bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 w-full max-w-3xl;
   }
-
-  .differences-modal-content {
-      @apply max-w-4xl;
-  }
-
+  
   /* From Uiverse.io by SouravBandyopadhyay - Hourglass Loader */
   .hourglassBackground {
     position: relative;
