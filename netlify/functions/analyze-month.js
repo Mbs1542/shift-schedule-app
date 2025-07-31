@@ -23,24 +23,25 @@ exports.handler = async function(event) {
             `- ${s.date} (יום ${s.dayName}, ${s.shiftType === 'morning' ? 'בוקר' : 'ערב'}): ${s.start.substring(0,5)}-${s.end.substring(0,5)}`
         ).join('\n');
 
-        // 5. בנה את ה-prompt עבור Gemini
+        // 5. *** שדרוג ה-prompt לניתוח מפורט יותר ***
         const prompt = `
-            You are a human resources analyst reviewing a monthly work schedule.
+            You are a senior human resources analyst providing a detailed, data-driven review of a monthly work schedule. Your analysis must be in professional, clear Hebrew.
             The data is for employee: ${employee} for the month of ${month}.
-            
+
             Here is the list of shifts worked:
             ${shiftsSummary}
 
-            Please provide a brief, insightful analysis in Hebrew based on this data. Focus on patterns, workload, and potential points of interest. 
-            Keep the analysis concise, friendly, and professional. Structure your response with a title and bullet points.
-            For example:
-            - Total number of shifts (morning vs. evening).
-            - Any long stretches of consecutive work days.
-            - Frequency of weekend (Friday) work.
-            - Any unusual shift patterns.
-            - A concluding positive or advisory sentence.
-            
-            Respond only with the analysis text.
+            Please provide a thorough and insightful analysis based on this data. Structure your response with a clear title and detailed bullet points. Go beyond generic statements and provide specific numbers and observations.
+
+            **Your analysis must include the following specific points:**
+            1.  **Total Shift Count:** State the total number of shifts, and the exact breakdown between morning and evening shifts.
+            2.  **Friday Work:** Precisely count how many Friday shifts the employee worked this month.
+            3.  **Consecutive Work Days:** Identify the longest stretch of consecutive work days.
+            4.  **Workload Distribution:** Comment on the workload distribution. Are there any weeks that were particularly heavy or light compared to others?
+            5.  **Shift Time Variations:** Identify any shifts with start or end times that deviate from the standard and comment on them.
+            6.  **Overall Summary:** Provide a concluding sentence that summarizes the month's work pattern, offering a professional, data-based insight.
+
+            Respond ONLY with the analysis text in Hebrew. Do not add any introductory or concluding remarks outside of the analysis itself.
         `;
 
         // 6. הגדר את ה-API ושלח את הבקשה
