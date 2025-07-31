@@ -332,16 +332,21 @@ async function handleGeminiSuggestShift() {
 
 async function handleUpload(file, isPdf, inputElement) {
     if (isProcessing) return;
-    
+
     if (!isPdf) {
         showImageMetadataModal(file, inputElement);
         return;
     }
 
+    // 1. הצג מיד את הקונטיינר עם ה-Stepper וגלול אליו
     DOMElements.differencesContainer.classList.remove('hidden');
+    DOMElements.differencesContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // 2. נקה את באנר הטעינה הישן
+    updateStatus('', 'info', false); 
+    // 3. הצג את השלב הראשון ב-Stepper
     updateStepper(1);
     setProcessingStatus(true);
-    updateStatus('מעבד קובץ PDF...', 'loading', true);
+    // --- FIX ENDS HERE ---
 
     const fileReader = new FileReader();
     fileReader.readAsArrayBuffer(file);
@@ -364,13 +369,13 @@ async function handleUpload(file, isPdf, inputElement) {
                 imagePromises.push(canvas.toDataURL('image/jpeg', 0.8));
             }
 
-            updateStepper(2);
+            updateStepper(2); // עדכן לשלב 2 לפני הקריאה ל-AI
             const extractionPromises = imagePromises.map(imageData =>
                 hilanetParser.callGeminiForShiftExtraction(imageData, detectedMonth, detectedYear, employeeName, 'hilanet-report')
             );
 
             const allShifts = (await Promise.all(extractionPromises)).flat();
-            updateStepper(3);
+            updateStepper(3); // עדכן לשלב 3 אחרי שה-AI סיים
 
             if (allShifts.length === 0) {
                 updateStatus('לא נמצאו משמרות לניתוח בקובץ.', 'info');
@@ -380,15 +385,13 @@ async function handleUpload(file, isPdf, inputElement) {
             currentHilanetShifts = hilanetParser.structureShifts(allShifts, detectedMonth, detectedYear, employeeName);
             const googleSheetsShifts = await getAllGoogleSheetsShiftsForMaor();
             currentDifferences = hilanetParser.compareSchedules(googleSheetsShifts, currentHilanetShifts);
-            
+
             displayDifferences(currentDifferences);
-            if (DOMElements.differencesContainer) {
-                DOMElements.differencesContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
             updateStatus('השוואת הסידורים הושלמה!', 'success');
 
         } catch (error) {
             displayAPIError(error, 'אירעה שגיאה בעיבוד הקובץ.');
+            hideDifferencesContainer(); // הסתר את הקונטיינר במקרה של שגיאה
         } finally {
             setProcessingStatus(false);
             if(inputElement) inputElement.value = '';
@@ -495,9 +498,10 @@ function showImageMetadataModal(file, inputElement) {
 
 async function processImageWithMetadata(file, month, year, employeeName, inputElement) {
     DOMElements.differencesContainer.classList.remove('hidden');
+    DOMElements.differencesContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    updateStatus('', 'info', false);
     updateStepper(1);
     setProcessingStatus(true);
-    updateStatus('מעבד קובץ תמונה...', 'loading', true);
 
     try {
         const fileReader = new FileReader();
@@ -517,9 +521,9 @@ async function processImageWithMetadata(file, month, year, employeeName, inputEl
                 };
             });
 
-            updateStepper(2);
+            updateStepper(2); // עדכן לשלב 2 לפני הקריאה ל-AI
             const extractedShifts = await hilanetParser.callGeminiForShiftExtraction(imageData, month, year, employeeName, 'generic');
-            updateStepper(3);
+            updateStepper(3); // עדכן לשלב 3 אחרי שה-AI סיים
 
             if (extractedShifts.length === 0) {
                 updateStatus('לא נמצאו משמרות לניתוח בתמונה.', 'info');
@@ -530,15 +534,13 @@ async function processImageWithMetadata(file, month, year, employeeName, inputEl
             currentHilanetShifts = hilanetParser.structureShifts(extractedShifts, month, year, employeeName);
             const googleSheetsShifts = await getAllGoogleSheetsShiftsForMaor();
             currentDifferences = hilanetParser.compareSchedules(googleSheetsShifts, currentHilanetShifts);
-            
+
             displayDifferences(currentDifferences);
-            if (DOMElements.differencesContainer) {
-                DOMElements.differencesContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
             updateStatus('השוואת הסידורים הושלמה!', 'success');
         };
     } catch (error) {
         displayAPIError(error, 'אירעה שגיאה בעיבוד התמונה.');
+        hideDifferencesContainer(); // הסתר את הקונטיינר במקרה של שגיאה
     } finally {
         setProcessingStatus(false);
         if (inputElement) inputElement.value = '';
