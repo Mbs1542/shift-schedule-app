@@ -319,6 +319,9 @@ export async function handleAnalyzeMonth() {
         return;
     }
     
+    const button = DOMElements.analyzeMonthlySummaryBtn;
+    setButtonLoading(button, 'מנתח...');
+
     updateStatus('מנתח את החודש עם AI...', 'loading', true);
     DOMElements.monthlyAnalysisContainer.classList.add('hidden');
 
@@ -347,6 +350,8 @@ export async function handleAnalyzeMonth() {
         displayAPIError(error, 'שגיאה בקבלת ניתוח חודשי.');
         DOMElements.monthlyAnalysisContent.textContent = 'לא ניתן היה לקבל ניתוח כרגע.';
         DOMElements.monthlyAnalysisContainer.classList.remove('hidden');
+    } finally {
+        restoreButton(button);
     }
 }
 
