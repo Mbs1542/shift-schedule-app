@@ -45,7 +45,7 @@ exports.handler = async function(event) {
         `;
 
         // 6. הגדר את ה-API ושלח את הבקשה
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
         
         const payload = {
             contents: [{ parts: [{ text: prompt }] }]
