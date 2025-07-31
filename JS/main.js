@@ -294,54 +294,41 @@ async function handleGeminiSuggestShift() {
 
 async function handleUpload(file, isPdf, inputElement) {
     if (isProcessing) return;
+
+    // --- לוגיקה חדשה: הצגת חלון לבחירת תאריך עבור תמונות ---
+    if (!isPdf) {
+        showImageMetadataModal(file, inputElement);
+        return; // הפסקת העיבוד עד שהמשתמש יאשר את התאריך
+    }
+    // -----------------------------------------------------------
+
     setProcessingStatus(true);
-    updateStatus(`מעבד קובץ ${isPdf ? 'PDF' : 'תמונה'}...`, 'loading', true);
+    updateStatus('מעבד קובץ PDF...', 'loading', true);
 
     const fileReader = new FileReader();
     fileReader.readAsArrayBuffer(file);
 
     fileReader.onload = async (e) => {
         try {
-            let employeeName, detectedMonth, detectedYear;
+            // לוגיקה קיימת לעיבוד PDF
+            const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(e.target.result) }).promise;
+            const textContent = await (await pdf.getPage(1)).getTextContent();
+            const rawText = textContent.items.map(item => item.str).join(' ');
+            const { employeeName, detectedMonth, detectedYear } = hilanetParser.processHilanetData(rawText);
+
             const imagePromises = [];
-
-            if (isPdf) {
-                const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(e.target.result) }).promise;
-                const textContent = await (await pdf.getPage(1)).getTextContent();
-                const rawText = textContent.items.map(item => item.str).join(' ');
-                ({ employeeName, detectedMonth, detectedYear } = hilanetParser.processHilanetData(rawText));
-
-                for (let i = 1; i <= pdf.numPages; i++) {
-                    const page = await pdf.getPage(i);
-                    const viewport = page.getViewport({ scale: 1.5 });
-                    const canvas = document.createElement('canvas');
-                    canvas.height = viewport.height;
-                    canvas.width = viewport.width;
-                    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-                    imagePromises.push(canvas.toDataURL('image/jpeg', 0.8));
-                }
-            } else {
-                employeeName = 'מאור'; // Placeholder
-                detectedMonth = new Date().getMonth() + 1; // Placeholder
-                detectedYear = new Date().getFullYear(); // Placeholder
-                const image = new Image();
-                const objectURL = URL.createObjectURL(file);
-                image.src = objectURL;
-                await new Promise(resolve => {
-                    image.onload = () => {
-                        URL.revokeObjectURL(objectURL);
-                        resolve();
-                    };
-                });
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const viewport = page.getViewport({ scale: 1.5 });
                 const canvas = document.createElement('canvas');
-                canvas.width = image.width;
-                canvas.height = image.height;
-                canvas.getContext('2d').drawImage(image, 0, 0);
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
                 imagePromises.push(canvas.toDataURL('image/jpeg', 0.8));
             }
 
             const extractionPromises = imagePromises.map(imageData =>
-                hilanetParser.callGeminiForShiftExtraction(imageData, detectedMonth, detectedYear, employeeName, isPdf ? 'hilanet-report' : 'generic')
+                hilanetParser.callGeminiForShiftExtraction(imageData, detectedMonth, detectedYear, employeeName, 'hilanet-report')
             );
 
             const allShifts = (await Promise.all(extractionPromises)).flat();
@@ -361,7 +348,7 @@ async function handleUpload(file, isPdf, inputElement) {
             displayAPIError(error, 'אירעה שגיאה בעיבוד הקובץ.');
         } finally {
             setProcessingStatus(false);
-            if(inputElement) inputElement.value = ''; // Reset the input
+            if(inputElement) inputElement.value = '';
         }
     };
     fileReader.onerror = () => {
@@ -369,7 +356,6 @@ async function handleUpload(file, isPdf, inputElement) {
         if(inputElement) inputElement.value = '';
     };
 }
-
 
 async function getAllGoogleSheetsShiftsForMaor() {
     const maorShifts = {};
@@ -413,7 +399,103 @@ async function handleImportSelectedHilanetShifts() {
     }
     closeDifferencesModal();
 }
+// הדבק את שתי הפונקציות האלה לפני initializeAppLogic
+function showImageMetadataModal(file, inputElement) {
+    const yearSelect = document.getElementById('image-year-select');
+    const monthSelect = document.getElementById('image-month-select');
 
+    yearSelect.innerHTML = '';
+    monthSelect.innerHTML = '';
+
+    const currentYear = new Date().getFullYear();
+    // הצג את 2025 ברשימה
+    for (let i = currentYear - 2; i <= currentYear + 3; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = i;
+        if (i === 2025) option.selected = true; // בחר את 2025 כברירת מחדל
+        else if (i === currentYear && !option.selected) option.selected = true;
+        yearSelect.appendChild(option);
+    }
+
+    for (let i = 1; i <= 12; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = new Date(2000, i - 1, 1).toLocaleDateString('he-IL', { month: 'long' });
+         // בחר את יולי כברירת מחדל
+        if (i === 7) option.selected = true;
+        monthSelect.appendChild(option);
+    }
+
+    DOMElements.imageMetadataModal.classList.remove('hidden');
+
+    const confirmBtn = document.getElementById('image-metadata-confirm-btn');
+    const cancelBtn = document.getElementById('image-metadata-cancel-btn');
+
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+    newConfirmBtn.addEventListener('click', () => {
+        const selectedYear = yearSelect.value;
+        const selectedMonth = monthSelect.value;
+        const selectedEmployee = document.getElementById('image-employee-select').value;
+        DOMElements.imageMetadataModal.classList.add('hidden');
+        processImageWithMetadata(file, selectedMonth, selectedYear, selectedEmployee, inputElement);
+    });
+
+    newCancelBtn.addEventListener('click', () => {
+        DOMElements.imageMetadataModal.classList.add('hidden');
+        if (inputElement) inputElement.value = ''; // איפוס שדה הקלט
+    });
+}
+
+async function processImageWithMetadata(file, month, year, employeeName, inputElement) {
+    setProcessingStatus(true);
+    updateStatus('מעבד קובץ תמונה...', 'loading', true);
+
+    try {
+        const fileReader = new FileReader();
+        fileReader.readAsArrayBuffer(file);
+        fileReader.onload = async (e) => {
+            const imageData = await new Promise((resolve) => {
+                const image = new Image();
+                const objectURL = URL.createObjectURL(file);
+                image.src = objectURL;
+                image.onload = () => {
+                    URL.revokeObjectURL(objectURL);
+                    const canvas = document.createElement('canvas');
+                    canvas.width = image.width;
+                    canvas.height = image.height;
+                    canvas.getContext('2d').drawImage(image, 0, 0);
+                    resolve(canvas.toDataURL('image/jpeg', 0.8));
+                };
+            });
+
+            const extractedShifts = await hilanetParser.callGeminiForShiftExtraction(imageData, month, year, employeeName, 'generic');
+
+            if (extractedShifts.length === 0) {
+                updateStatus('לא נמצאו משמרות לניתוח בתמונה.', 'info');
+                setProcessingStatus(false);
+                return;
+            }
+
+            currentHilanetShifts = hilanetParser.structureShifts(extractedShifts, month, year, employeeName);
+            const googleSheetsShifts = await getAllGoogleSheetsShiftsForMaor();
+            currentDifferences = hilanetParser.compareSchedules(googleSheetsShifts, currentHilanetShifts);
+            displayDifferences(currentDifferences);
+            updateStatus('השוואת הסידורים הושלמה!', 'success');
+            setProcessingStatus(false);
+        };
+    } catch (error) {
+        displayAPIError(error, 'אירעה שגיאה בעיבוד התמונה.');
+        setProcessingStatus(false);
+    } finally {
+        if (inputElement) inputElement.value = '';
+    }
+}
 
 // --- Initialization ---
 
