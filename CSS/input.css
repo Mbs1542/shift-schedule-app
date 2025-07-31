@@ -14,35 +14,35 @@
   }
 
   .btn {
-    @apply inline-flex items-center justify-center font-semibold py-2.5 px-5 rounded-lg shadow-md transition-all duration-300 ease-in-out focus:outline-none focus:ring-4 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:scale-100 hover:shadow-lg;
+    @apply inline-flex items-center justify-center font-semibold py-2.5 px-5 rounded-lg border-b-4 transition-all duration-150 ease-in-out focus:outline-none focus:ring-4 active:translate-y-0.5 active:border-b-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:border-b-4;
   }
 
   .btn-blue {
-    @apply bg-gradient-to-br from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 focus:ring-blue-300 shadow-blue-500/50 hover:shadow-blue-500/50;
+    @apply bg-blue-500 text-white border-blue-700 hover:bg-blue-600 focus:ring-blue-300;
   }
 
   .btn-red {
-    @apply bg-gradient-to-br from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 focus:ring-red-300 shadow-red-500/50 hover:shadow-red-500/50;
+    @apply bg-red-500 text-white border-red-700 hover:bg-red-600 focus:ring-red-300;
   }
 
   .btn-green {
-    @apply bg-gradient-to-br from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 focus:ring-green-300 shadow-green-500/50 hover:shadow-green-500/50;
+    @apply bg-green-500 text-white border-green-700 hover:bg-green-600 focus:ring-green-300;
   }
 
   .btn-purple {
-    @apply bg-gradient-to-br from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700 focus:ring-purple-300 shadow-purple-500/50 hover:shadow-purple-500/50;
+    @apply bg-purple-500 text-white border-purple-700 hover:bg-purple-600 focus:ring-purple-300;
   }
   
   .btn-orange {
-    @apply bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 focus:ring-orange-300 shadow-orange-500/50 hover:shadow-orange-500/50;
+    @apply bg-orange-500 text-white border-orange-700 hover:bg-orange-600 focus:ring-orange-300;
   }
   
   .btn-cyan {
-      @apply bg-gradient-to-br from-cyan-400 to-cyan-500 text-white hover:from-cyan-500 hover:to-cyan-600 focus:ring-cyan-300 shadow-cyan-500/50 hover:shadow-cyan-500/50;
+      @apply bg-cyan-400 text-white border-cyan-600 hover:bg-cyan-500 focus:ring-cyan-300;
   }
 
   .btn-slate {
-      @apply bg-slate-200 text-slate-800 hover:bg-slate-300 focus:ring-slate-400 border border-slate-300 shadow-sm;
+      @apply bg-slate-200 text-slate-800 border-slate-400 hover:bg-slate-300 focus:ring-slate-400;
   }
 
   .custom-modal {

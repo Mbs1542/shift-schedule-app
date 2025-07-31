@@ -256,6 +256,22 @@
         </div>
     </div>
 
+    <div id="email-selection-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 id="email-selection-modal-title" class="text-xl font-bold mb-6 text-center text-slate-800">בחר נמען למייל</h3>
+            <div id="email-options-container" class="space-y-3 mb-6">
+                </div>
+            <div id="other-email-container" class="hidden mt-4">
+                <label for="other-email-input" class="block text-sm font-medium text-slate-700">כתובת מייל:</label>
+                <input type="email" id="other-email-input" class="mt-1 block w-full p-2 border border-slate-300 rounded-md" placeholder="example@email.com">
+            </div>
+            <div class="flex justify-center gap-4 mt-6">
+                <button id="email-selection-cancel-btn" class="btn btn-slate px-6 py-2">ביטול</button>
+                <button id="email-selection-confirm-btn" class="btn btn-blue px-6 py-2">שלח</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="JS/main.js"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 import { fetchData, handleCreateCalendarEvents, handleDeleteCalendarEvents, initializeGapiClient, saveFullSchedule } from './Api/googleApi.js';
 import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts, handleExportMonthlySummary, handleAnalyzeMonth, populateMonthSelector } from './components/charts.js';
-import { displayDifferences, hideDifferencesContainer, closeModal, closeVacationModal, handleModalSave, showEmployeeSelectionModal, showVacationModal } from './components/modal.js';
-import { handleExportToExcel, handleSendEmail, renderSchedule, sendFridaySummaryEmail } from './components/schedule.js';
+import { displayDifferences, hideDifferencesContainer, closeModal, closeVacationModal, handleModalSave, showEmployeeSelectionModal, showVacationModal, showEmailSelectionModal } from './components/modal.js';
+import { handleExportToExcel, renderSchedule, sendFridaySummaryEmail } from './components/schedule.js';
 import { EMPLOYEES, DAYS, VACATION_EMPLOYEE_REPLACEMENT, CLIENT_ID, SCOPES } from './config.js';
 import * as hilanetParser from './services/hilanetParser.js';
 // *** MODIFIED: Import new helper functions ***
@@ -290,44 +290,47 @@ async function handleVacationShift() {
 }
 
 async function handleGeminiSuggestShift() {
-    const weekId = getWeekId(DOMElements.datePicker.value);
-    const day = DOMElements.shiftModal.dataset.day;
-    const shiftType = DOMElements.shiftModal.dataset.shift;
+    const button = DOMElements.geminiSuggestionBtn;
+    setButtonLoading(button, 'מציע...');
 
-    const currentWeekDate = new Date(weekId);
-    currentWeekDate.setDate(currentWeekDate.getDate() - 7);
-    const previousWeekId = getWeekId(currentWeekDate.toISOString().split('T')[0]);
-    const lastFridayWorker = allSchedules[previousWeekId]?.['שישי']?.morning?.employee || 'אף אחד';
-
-    const availableEmployees = EMPLOYEES.filter(e => e !== VACATION_EMPLOYEE_REPLACEMENT);
-    let scheduleContext = "מצב נוכחי בסידור השבוע:\n";
-    DAYS.forEach(dayName => {
-        if (dayName === 'שבת') return;
-        const morningShift = allSchedules[weekId]?.[dayName]?.morning?.employee || 'פנוי';
-        const eveningShift = (dayName !== 'שישי' && allSchedules[weekId]?.[dayName]?.evening?.employee) || 'פנוי';
-        scheduleContext += `- יום ${dayName}: בוקר - ${morningShift}, ערב - ${eveningShift}\n`;
-    });
-
-    const prompt = `
-        You are an expert shift scheduler. Your task is to suggest one suitable employee for a specific shift based on a complex set of rules.
-        Shift to schedule: Day: ${day}, Shift: ${shiftType}.
-        Available employees: ${availableEmployees.join(', ')}.
-        Current week's schedule:
-        ${scheduleContext}
-        Additional info: The employee who worked last Friday morning was ${lastFridayWorker}.
-
-        Strict rules:
-        1. No double shifts on the same day.
-        2. An employee working Friday morning cannot work Thursday evening before it.
-        3. If scheduling for Friday morning, the chosen employee cannot work more than 4 morning shifts and 2 evening shifts in total that week.
-        4. If scheduling for Thursday evening, the chosen employee cannot work on Friday at all, and no more than 3 evening shifts and 2 morning shifts that week.
-        5. Friday rotation: When scheduling for Friday morning, you must not assign the employee who worked last Friday morning (${lastFridayWorker}).
-
-        Based on all data and rules, who is the most suitable employee? Respond with only the employee's name. If no employee fits all rules, respond with "אף אחד".
-    `;
-
-    updateStatus('מבקש הצעת שיבוץ מ-Gemini...', 'loading', true);
     try {
+        const weekId = getWeekId(DOMElements.datePicker.value);
+        const day = DOMElements.shiftModal.dataset.day;
+        const shiftType = DOMElements.shiftModal.dataset.shift;
+
+        const currentWeekDate = new Date(weekId);
+        currentWeekDate.setDate(currentWeekDate.getDate() - 7);
+        const previousWeekId = getWeekId(currentWeekDate.toISOString().split('T')[0]);
+        const lastFridayWorker = allSchedules[previousWeekId]?.['שישי']?.morning?.employee || 'אף אחד';
+
+        const availableEmployees = EMPLOYEES.filter(e => e !== VACATION_EMPLOYEE_REPLACEMENT);
+        let scheduleContext = "מצב נוכחי בסידור השבוע:\n";
+        DAYS.forEach(dayName => {
+            if (dayName === 'שבת') return;
+            const morningShift = allSchedules[weekId]?.[dayName]?.morning?.employee || 'פנוי';
+            const eveningShift = (dayName !== 'שישי' && allSchedules[weekId]?.[dayName]?.evening?.employee) || 'פנוי';
+            scheduleContext += `- יום ${dayName}: בוקר - ${morningShift}, ערב - ${eveningShift}\n`;
+        });
+
+        const prompt = `
+            You are an expert shift scheduler. Your task is to suggest one suitable employee for a specific shift based on a complex set of rules.
+            Shift to schedule: Day: ${day}, Shift: ${shiftType}.
+            Available employees: ${availableEmployees.join(', ')}.
+            Current week's schedule:
+            ${scheduleContext}
+            Additional info: The employee who worked last Friday morning was ${lastFridayWorker}.
+
+            Strict rules:
+            1. No double shifts on the same day.
+            2. An employee working Friday morning cannot work Thursday evening before it.
+            3. If scheduling for Friday morning, the chosen employee cannot work more than 4 morning shifts and 2 evening shifts in total that week.
+            4. If scheduling for Thursday evening, the chosen employee cannot work on Friday at all, and no more than 3 evening shifts and 2 morning shifts that week.
+            5. Friday rotation: When scheduling for Friday morning, you must not assign the employee who worked last Friday morning (${lastFridayWorker}).
+
+            Based on all data and rules, who is the most suitable employee? Respond with only the employee's name. If no employee fits all rules, respond with "אף אחד".
+        `;
+
+        updateStatus('מבקש הצעת שיבוץ מ-Gemini...', 'loading', true);
         const response = await fetch('/.netlify/functions/suggest-shift', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -350,6 +353,8 @@ async function handleGeminiSuggestShift() {
         }
     } catch (error) {
         displayAPIError(error, 'שגיאה בקבלת הצעת שיבוץ.');
+    } finally {
+        restoreButton(button);
     }
 }
 
@@ -685,6 +690,13 @@ function initializeAppLogic() {
         summaryEndDateInput: document.getElementById('summary-end-date'),
         summaryConfirmBtn: document.getElementById('summary-confirm-btn'),
         summaryCancelBtn: document.getElementById('summary-cancel-btn'),
+        // NEW: Email modal elements
+        emailSelectionModal: document.getElementById('email-selection-modal'),
+        emailOptionsContainer: document.getElementById('email-options-container'),
+        otherEmailContainer: document.getElementById('other-email-container'),
+        otherEmailInput: document.getElementById('other-email-input'),
+        emailSelectionConfirmBtn: document.getElementById('email-selection-confirm-btn'),
+        emailSelectionCancelBtn: document.getElementById('email-selection-cancel-btn'),
     };
 
     function handleDownloadDifferences() {
@@ -723,7 +735,7 @@ function initializeAppLogic() {
     // --- Attach all event listeners ---
     DOMElements.datePicker.addEventListener('change', () => renderSchedule(getWeekId(DOMElements.datePicker.value)));
     DOMElements.resetBtn.addEventListener('click', handleReset);
-    DOMElements.emailBtn.addEventListener('click', handleSendEmail);
+    DOMElements.emailBtn.addEventListener('click', showEmailSelectionModal);
     DOMElements.downloadBtn.addEventListener('click', handleExportToExcel);
     DOMElements.copyPreviousWeekBtn.addEventListener('click', handleCopyPreviousWeek);
     DOMElements.refreshDataBtn.addEventListener('click', fetchData);
