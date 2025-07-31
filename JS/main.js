@@ -625,10 +625,6 @@ function initializeAppLogic() {
     DOMElements.summaryConfirmBtn.addEventListener('click', handleSendFridaySummary);
     DOMElements.summaryCancelBtn.addEventListener('click', closeFridaySummaryModal);
     document.getElementById('download-differences-btn').addEventListener('click', handleDownloadDifferences);
-    
-    // Corrected event listeners for chart controls
-    DOMElements.exportMonthlySummaryBtn.addEventListener('click', handleExportMonthlySummary);
-    DOMElements.analyzeMonthlySummaryBtn.addEventListener('click', handleAnalyzeMonth);
 
     // --- Populate dropdowns ---
     EMPLOYEES.forEach(emp => {
@@ -639,16 +635,15 @@ function initializeAppLogic() {
         if (DOMElements.monthlySummaryEmployeeSelect) DOMElements.monthlySummaryEmployeeSelect.appendChild(option.cloneNode(true));
         if (DOMElements.vacationEmployeeSelect) DOMElements.vacationEmployeeSelect.appendChild(option.cloneNode(true));
     });
-    
-    // Corrected event listeners for dropdowns to trigger chart updates
+
+    // Corrected event listener for employee dropdown to trigger chart and event listener updates
     if (DOMElements.monthlySummaryEmployeeSelect) {
         DOMElements.monthlySummaryEmployeeSelect.addEventListener('change', () => {
             populateMonthSelector();
             updateMonthlySummaryChart();
+            // This is the key change: we re-apply the listeners every time the employee changes
+            setupMonthlyChartEventListeners();
         });
-    }
-    if (DOMElements.monthlySummaryMonthSelect) {
-        DOMElements.monthlySummaryMonthSelect.addEventListener('change', updateMonthlySummaryChart);
     }
 
     // --- Initial setup ---
@@ -686,6 +681,31 @@ async function handleSendFridaySummary() {
 
     closeFridaySummaryModal();
     await sendFridaySummaryEmail(startDate, endDate);
+}
+export function setupMonthlyChartEventListeners() {
+    const monthSelect = DOMElements.monthlySummaryMonthSelect;
+    if (monthSelect) {
+        const newMonthSelect = monthSelect.cloneNode(true);
+        monthSelect.parentNode.replaceChild(newMonthSelect, monthSelect);
+        DOMElements.monthlySummaryMonthSelect = newMonthSelect;
+        DOMElements.monthlySummaryMonthSelect.addEventListener('change', updateMonthlySummaryChart);
+    }
+
+    const exportBtn = DOMElements.exportMonthlySummaryBtn;
+    if (exportBtn) {
+        const newExportBtn = exportBtn.cloneNode(true);
+        exportBtn.parentNode.replaceChild(newExportBtn, exportBtn);
+        DOMElements.exportMonthlySummaryBtn = newExportBtn;
+        DOMElements.exportMonthlySummaryBtn.addEventListener('click', handleExportMonthlySummary);
+    }
+
+    const analyzeBtn = DOMElements.analyzeMonthlySummaryBtn;
+    if (analyzeBtn) {
+        const newAnalyzeBtn = analyzeBtn.cloneNode(true);
+        analyzeBtn.parentNode.replaceChild(newAnalyzeBtn, analyzeBtn);
+        DOMElements.analyzeMonthlySummaryBtn = newAnalyzeBtn;
+        DOMElements.analyzeMonthlySummaryBtn.addEventListener('click', handleAnalyzeMonth);
+    }
 }
 
 document.addEventListener('DOMContentLoaded', initializeAppLogic);

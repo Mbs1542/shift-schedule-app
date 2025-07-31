@@ -1,5 +1,5 @@
 import { DAYS } from "../config.js";
-import { updateStatus, DOMElements, allSchedules, displayAPIError } from "../main.js";
+import { updateStatus, DOMElements, allSchedules, displayAPIError, setupMonthlyChartEventListeners } from "../main.js";
 import { getWeekId, formatDate, getWeekDates, formatMonthYear } from "../utils.js";
 
 let weeklyChart = null;
@@ -31,9 +31,12 @@ export async function handleShowChart() {
     if (isHidden) {
         DOMElements.chartCard.classList.remove('hidden');
         DOMElements.monthlySummaryEmployeeSelect.value = 'מאור';
-        // ### שינוי: קריאה לפונקציות החדשות ###
+        
         populateMonthSelector();
         updateMonthlySummaryChart();
+
+        // **זו השורה שחסרה לך. היא קריטית לתיקון**
+        setupMonthlyChartEventListeners(); 
 
         setTimeout(() => {
             DOMElements.chartCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
