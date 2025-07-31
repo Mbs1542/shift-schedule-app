@@ -157,18 +157,15 @@ export function structureShifts(shifts, month, year, employeeName) {
     if (!Array.isArray(shifts)) return structured;
 
     shifts.forEach(shift => {
-        // Use optional chaining and nullish coalescing for flexibility
         const entryTime = shift.entryTime || shift.start;
         const exitTime = shift.exitTime || shift.end;
 
-        // Handle format from 'hilanet-report' or 'generic' with start/end times
         if (shift.day && entryTime && exitTime) {
             let entry = entryTime;
             let exit = exitTime;
 
-            // Safeguard: if entry time is later than exit time, swap them.
             if (new Date(`1970-01-01T${entry}`) > new Date(`1970-01-01T${exit}`)) {
-                [entry, exit] = [exit, entry]; // Swap the values
+                [entry, exit] = [exit, entry]; 
             }
             
             const dateString = `${year}-${String(month).padStart(2, '0')}-${String(shift.day).padStart(2, '0')}`;
@@ -182,7 +179,6 @@ export function structureShifts(shifts, month, year, employeeName) {
                 end: formatTimeToHHMMSS(exit),
             };
         } 
-        // Handle format from 'generic' schedule image without specific times (uses defaults)
         else if (shift.day && shift.shiftType && shift.employee) {
             const dateString = `${year}-${String(month).padStart(2, '0')}-${String(shift.day).padStart(2, '0')}`;
              if (!structured[dateString]) structured[dateString] = {};
@@ -234,7 +230,12 @@ export function compareSchedules(googleSheetsShifts, hilanetShifts) {
 }
 
 /**
- * Handles the import of selected shifts from the comparison.
+ * *** MODIFIED: Handles the import of selected shifts from the comparison. ***
+ * A new rule was added to filter out any differences that fall on a Saturday ('שבת')
+ * before attempting to import them. This prevents the bug of adding shifts on non-working days.
+ * @param {Array} selectedDifferences - The array of difference objects selected by the user.
+ * @param {Object} allSchedules - The main schedules data store.
+ * @returns {{updatedSchedules: Object, importedCount: number}} - The updated schedule object and a count of imported shifts.
  */
 export function handleImportSelectedHilanetShifts(selectedDifferences, allSchedules) {
     if (!selectedDifferences || selectedDifferences.length === 0) {
@@ -244,17 +245,21 @@ export function handleImportSelectedHilanetShifts(selectedDifferences, allSchedu
     let importedCount = 0;
     const newSchedules = JSON.parse(JSON.stringify(allSchedules));
 
-    selectedDifferences.forEach(diff => {
-        if (diff.type === 'added' || diff.type === 'changed') {
-            const weekId = getWeekId(diff.date);
-            const dayName = DAYS[new Date(diff.date).getDay()];
-            
-            if (!newSchedules[weekId]) newSchedules[weekId] = {};
-            if (!newSchedules[weekId][dayName]) newSchedules[weekId][dayName] = {};
+    // **CRITICAL FIX**: Filter out any shifts on Saturday before processing.
+    const validDifferencesToImport = selectedDifferences.filter(diff => {
+        return diff.dayName !== 'שבת' && (diff.type === 'added' || diff.type === 'changed');
+    });
 
-            newSchedules[weekId][dayName][diff.shiftType] = diff.hilanet;
-            importedCount++;
-        }
+    validDifferencesToImport.forEach(diff => {
+        const weekId = getWeekId(diff.date);
+        const dayName = DAYS[new Date(diff.date).getDay()];
+        
+        if (!newSchedules[weekId]) newSchedules[weekId] = {};
+        if (!newSchedules[weekId][dayName]) newSchedules[weekId][dayName] = {};
+
+        // Import the shift from Hilanet data
+        newSchedules[weekId][dayName][diff.shiftType] = diff.hilanet;
+        importedCount++;
     });
 
     return { 

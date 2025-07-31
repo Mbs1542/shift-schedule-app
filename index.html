@@ -16,13 +16,13 @@
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
 </head>
-<body class="bg-slate-100 p-4 sm:p-6 md:p-8">
+<body class="bg-slate-100 dark:bg-slate-900 p-4 sm:p-6 md:p-8 transition-colors duration-300">
 
     <div class="max-w-6xl mx-auto">
         <div class="text-center mb-6">
             <img id="logo-img" src="https://i.imgur.com/WtfzK0a.png" alt="Logo" class="h-16 w-auto mx-auto mb-4 rounded-md">
-            <h1 class="text-3xl md:text-4xl font-bold text-slate-800">מערכת סידור משמרות</h1>
-            <p class="text-slate-600 mt-2 text-lg">הנתונים נשמרים ונקראים ישירות מ-Google Sheets.</p>
+            <h1 class="text-3xl md:text-4xl font-bold text-slate-800 dark:text-slate-200">מערכת סידור משמרות</h1>
+            <p class="text-slate-600 dark:text-slate-400 mt-2 text-lg">הנתונים נשמרים ונקראים ישירות מ-Google Sheets.</p>
         </div>
 
         <div class="card flex flex-col md:flex-row justify-between items-center gap-4">
@@ -30,14 +30,20 @@
                 <button id="authorize_button" class="btn btn-blue" disabled>התחבר/אשר עם Google</button>
                 <button id="signout_button" class="btn btn-red hidden">התנתק</button>
             </div>
-            <div id="status-indicator" class="flex items-center gap-2 text-sm text-slate-500 p-2 rounded-md"></div>
+            
+            <button id="theme-toggle-btn" class="p-2 rounded-full text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400">
+                <svg id="theme-toggle-dark-icon" class="w-6 h-6 hidden" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+                <svg id="theme-toggle-light-icon" class="w-6 h-6 hidden" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zM3 11a1 1 0 100-2H2a1 1 0 100 2h1zM6.465 14.95l-.708.707a1 1 0 001.414 1.414l.707-.707a1 1 0 00-1.414-1.414z"></path></svg>
+            </button>
+            
+            <div id="status-indicator" class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 p-2 rounded-md"></div>
         </div>
 
         <div id="app-content" class="hidden">
             <div class="card flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="flex items-center gap-3">
-                    <label for="date-picker" class="font-semibold text-slate-700">בחר שבוע:</label>
-                    <input type="date" id="date-picker" class="p-2 border border-slate-300 rounded-md">
+                    <label for="date-picker" class="font-semibold text-slate-700 dark:text-slate-300">בחר שבוע:</label>
+                    <input type="date" id="date-picker" class="p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                 </div>
                 <div class="flex items-center gap-3 flex-wrap justify-center">
                     <button id="reset-btn" class="btn btn-red text-sm py-2 px-4">אפס שבוע</button>
@@ -59,26 +65,26 @@
             </div>
 
             <div id="schedule-card" class="card">
-                <h2 id="schedule-title" class="text-2xl font-semibold mb-4 text-slate-700 text-center"></h2>
+                <h2 id="schedule-title" class="text-2xl font-semibold mb-4 text-slate-700 dark:text-slate-200 text-center"></h2>
                 <div class="overflow-x-auto">
-                    <table id="schedule-table" class="w-full text-center text-slate-700 border-collapse">
-                        <thead class="bg-slate-200">
+                    <table id="schedule-table" class="w-full text-center text-slate-700 dark:text-slate-300 border-collapse">
+                        <thead class="bg-slate-200 dark:bg-slate-700">
                             <tr>
-                                <th class="p-3 border border-slate-300">יום</th>
-                                <th class="p-3 border border-slate-300">תאריך</th>
-                                <th class="p-3 border border-slate-300">משמרת בוקר</th>
-                                <th class="p-3 border border-slate-300">משמרת ערב</th>
+                                <th class="p-3 border border-slate-300 dark:border-slate-600">יום</th>
+                                <th class="p-3 border border-slate-300 dark:border-slate-600">תאריך</th>
+                                <th class="p-3 border border-slate-300 dark:border-slate-600">משמרת בוקר</th>
+                                <th class="p-3 border border-slate-300 dark:border-slate-600">משמרת ערב</th>
                             </tr>
                         </thead>
-                        <tbody id="schedule-body" class="bg-white">
+                        <tbody id="schedule-body" class="bg-white dark:bg-slate-800">
                         </tbody>
                     </table>
                 </div>
             </div>
             
             <div id="differences-container" class="card hidden relative">
-                <div id="hourglass-loader" class="hidden absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 rounded-xl">
-                    <p class="text-center font-semibold text-slate-600 mb-2">מייבא משמרות ושומר...</p>
+                <div id="hourglass-loader" class="hidden absolute inset-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 rounded-xl">
+                    <p class="text-center font-semibold text-slate-600 dark:text-slate-300 mb-2">מייבא משמרות ושומר...</p>
                     <div class="hourglassBackground">
                         <div class="hourglassContainer">
                             <div class="hourglassCurves"></div>
@@ -106,9 +112,9 @@
                         <span><h3 class="font-medium leading-tight">השוואה</h3><p class="text-sm">הצגת פערים</p></span>
                     </li>
                 </ol>
-                <h3 class="text-xl font-bold mb-4 text-slate-800">השוואת סידורים</h3>
+                <h3 class="text-xl font-bold mb-4 text-slate-800 dark:text-slate-200">השוואת סידורים</h3>
                 <div id="differences-modal-status" class="text-center text-sm font-medium mb-4"></div>
-                <div id="differences-display" class="text-sm text-slate-700 mb-4 overflow-x-auto"></div>
+                <div id="differences-display" class="text-sm text-slate-700 dark:text-slate-300 mb-4 overflow-x-auto"></div>
                 <div class="flex justify-center gap-4 flex-wrap">
                     <button id="close-differences-btn" class="btn btn-slate">הסתר השוואה</button>
                     <button id="download-differences-btn" class="btn btn-green">הורד קובץ פערים (CSV)</button>
@@ -117,22 +123,22 @@
             </div>
             <div class="chart-container-wrapper">
                 <div id="chart-card" class="card hidden">
-                    <h2 class="text-2xl font-semibold mb-4 text-slate-700 text-center">גרף התפלגות משמרות שבועית</h2>
+                    <h2 class="text-2xl font-semibold mb-4 text-slate-700 dark:text-slate-200 text-center">גרף התפלגות משמרות שבועית</h2>
                     <div class="chart-container">
                         <canvas id="shift-chart"></canvas>
                     </div>
                 </div>
 
                 <div id="monthly-summary-chart-card" class="card hidden">
-                    <h2 class="text-2xl font-semibold mb-4 text-slate-700 text-center">סיכום משמרות חודשי לעובד</h2>
+                    <h2 class="text-2xl font-semibold mb-4 text-slate-700 dark:text-slate-200 text-center">סיכום משמרות חודשי לעובד</h2>
                     <div class="flex flex-col sm:flex-row justify-center items-center gap-4 mb-4">
                         <div class="flex-grow w-full sm:w-auto">
-                            <label for="monthly-summary-employee-select" class="block text-sm font-medium text-slate-700 mb-2">בחר עובד:</label>
-                            <select id="monthly-summary-employee-select" class="p-2 border border-slate-300 rounded-md w-full max-w-xs"></select>
+                            <label for="monthly-summary-employee-select" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">בחר עובד:</label>
+                            <select id="monthly-summary-employee-select" class="p-2 border border-slate-300 dark:border-slate-600 rounded-md w-full max-w-xs bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300"></select>
                         </div>
                         <div id="month-selector-container" class="flex-grow w-full sm:w-auto hidden">
-                            <label for="monthly-summary-month-select" class="block text-sm font-medium text-slate-700 mb-2">בחר חודש:</label>
-                            <select id="monthly-summary-month-select" class="p-2 border border-slate-300 rounded-md w-full max-w-xs"></select>
+                            <label for="monthly-summary-month-select" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">בחר חודש:</label>
+                            <select id="monthly-summary-month-select" class="p-2 border border-slate-300 dark:border-slate-600 rounded-md w-full max-w-xs bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300"></select>
                         </div>
                     </div>
                     <div class="flex justify-center gap-3 mb-6">
@@ -142,9 +148,9 @@
                     <div class="chart-container">
                         <canvas id="monthly-summary-chart"></canvas>
                     </div>
-                    <div id="monthly-analysis-container" class="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-200 hidden">
-                        <h4 class="font-semibold text-lg text-slate-800 mb-2">תובנות על החודש</h4>
-                        <div id="monthly-analysis-content" class="text-slate-600 whitespace-pre-wrap"></div>
+                    <div id="monthly-analysis-container" class="mt-6 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 hidden">
+                        <h4 class="font-semibold text-lg text-slate-800 dark:text-slate-200 mb-2">תובנות על החודש</h4>
+                        <div id="monthly-analysis-content" class="text-slate-600 dark:text-slate-300 whitespace-pre-wrap"></div>
                     </div>
                 </div>
             </div>
@@ -152,18 +158,18 @@
     </div>
 
     <div id="shift-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
-            <h3 id="modal-title" class="text-xl font-bold mb-6 text-center text-slate-800"></h3>
+        <div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 id="modal-title" class="text-xl font-bold mb-6 text-center text-slate-800 dark:text-slate-200"></h3>
             <div id="modal-options" class="space-y-3"></div>
             <button id="gemini-suggestion-btn" class="mt-4 w-full btn btn-purple">הצע לי שיבוץ לעובד</button>
             <div class="space-y-4 mt-4">
                 <div>
-                    <label for="shift-start-time" class="block text-sm font-medium text-slate-700">שעת התחלה:</label>
-                    <input type="time" id="shift-start-time" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
+                    <label for="shift-start-time" class="block text-sm font-medium text-slate-700 dark:text-slate-300">שעת התחלה:</label>
+                    <input type="time" id="shift-start-time" class="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300">
                 </div>
                 <div>
-                    <label for="shift-end-time" class="block text-sm font-medium text-slate-700">שעת סיום:</label>
-                    <input type="time" id="shift-end-time" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
+                    <label for="shift-end-time" class="block text-sm font-medium text-slate-700 dark:text-slate-300">שעת סיום:</label>
+                    <input type="time" id="shift-end-time" class="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300">
                 </div>
             </div>
             <div class="mt-6 flex gap-4">
@@ -174,9 +180,9 @@
     </div>
 
     <div id="employee-selection-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
-            <h3 id="employee-selection-modal-title" class="text-xl font-bold mb-6 text-center text-slate-800">בחר עובדים</h3>
-            <div id="employee-checkboxes-container" class="space-y-3 mb-6"></div>
+        <div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 id="employee-selection-modal-title" class="text-xl font-bold mb-6 text-center text-slate-800 dark:text-slate-200">בחר עובדים</h3>
+            <div id="employee-checkboxes-container" class="space-y-3 mb-6 text-slate-700 dark:text-slate-300"></div>
             <div class="flex justify-center gap-4">
                 <button id="employee-selection-cancel-btn" class="btn btn-slate px-6 py-2">ביטול</button>
                 <button id="employee-selection-confirm-btn" class="btn btn-blue px-6 py-2">אישור</button>
@@ -185,22 +191,22 @@
     </div>
 
     <div id="vacation-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h3 class="text-xl font-bold mb-6 text-center text-slate-800">הגדר חופשה לעובד</h3>
+        <div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h3 class="text-xl font-bold mb-6 text-center text-slate-800 dark:text-slate-200">הגדר חופשה לעובד</h3>
             <div class="space-y-4">
                 <div>
-                    <label for="vacation-employee-select" class="block text-sm font-medium text-slate-700">בחר עובד:</label>
-                    <select id="vacation-employee-select" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
+                    <label for="vacation-employee-select" class="block text-sm font-medium text-slate-700 dark:text-slate-300">בחר עובד:</label>
+                    <select id="vacation-employee-select" class="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300">
                         <option value="">בחר עובד</option>
                     </select>
                 </div>
                 <div>
-                    <label for="vacation-start-date" class="block text-sm font-medium text-slate-700">תאריך התחלה:</label>
-                    <input type="date" id="vacation-start-date" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
+                    <label for="vacation-start-date" class="block text-sm font-medium text-slate-700 dark:text-slate-300">תאריך התחלה:</label>
+                    <input type="date" id="vacation-start-date" class="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300">
                 </div>
                 <div>
-                    <label for="vacation-end-date" class="block text-sm font-medium text-slate-700">תאריך סיום:</label>
-                    <input type="date" id="vacation-end-date" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
+                    <label for="vacation-end-date" class="block text-sm font-medium text-slate-700 dark:text-slate-300">תאריך סיום:</label>
+                    <input type="date" id="vacation-end-date" class="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300">
                 </div>
             </div>
             <div class="flex justify-center gap-4 mt-8">
@@ -211,22 +217,22 @@
     </div>
 
     <div id="image-metadata-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
-            <h3 class="text-xl font-bold mb-6 text-center text-slate-800">פרטי סידור העבודה שבתמונה</h3>
+        <div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 class="text-xl font-bold mb-6 text-center text-slate-800 dark:text-slate-200">פרטי סידור העבודה שבתמונה</h3>
             <div class="space-y-4">
                 <div>
-                    <label for="image-employee-select" class="block text-sm font-medium text-slate-700">עובד:</label>
-                    <select id="image-employee-select" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
+                    <label for="image-employee-select" class="block text-sm font-medium text-slate-700 dark:text-slate-300">עובד:</label>
+                    <select id="image-employee-select" class="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300">
                         <option value="מאור" selected>מאור</option>
                     </select>
                 </div>
                 <div>
-                    <label for="image-month-select" class="block text-sm font-medium text-slate-700">חודש:</label>
-                    <select id="image-month-select" class="mt-1 block w-full p-2 border border-slate-300 rounded-md"></select>
+                    <label for="image-month-select" class="block text-sm font-medium text-slate-700 dark:text-slate-300">חודש:</label>
+                    <select id="image-month-select" class="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300"></select>
                 </div>
                 <div>
-                    <label for="image-year-select" class="block text-sm font-medium text-slate-700">שנה:</label>
-                    <select id="image-year-select" class="mt-1 block w-full p-2 border border-slate-300 rounded-md"></select>
+                    <label for="image-year-select" class="block text-sm font-medium text-slate-700 dark:text-slate-300">שנה:</label>
+                    <select id="image-year-select" class="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300"></select>
                 </div>
             </div>
             <div class="flex justify-center gap-4 mt-8">
@@ -237,16 +243,16 @@
     </div>
     
     <div id="friday-summary-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h3 class="text-xl font-bold mb-6 text-center text-slate-800">בחירת טווח תאריכים לסיכום</h3>
+        <div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h3 class="text-xl font-bold mb-6 text-center text-slate-800 dark:text-slate-200">בחירת טווח תאריכים לסיכום</h3>
             <div class="space-y-4">
                 <div>
-                    <label for="summary-start-date" class="block text-sm font-medium text-slate-700">מתאריך:</label>
-                    <input type="date" id="summary-start-date" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
+                    <label for="summary-start-date" class="block text-sm font-medium text-slate-700 dark:text-slate-300">מתאריך:</label>
+                    <input type="date" id="summary-start-date" class="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300">
                 </div>
                 <div>
-                    <label for="summary-end-date" class="block text-sm font-medium text-slate-700">עד תאריך:</label>
-                    <input type="date" id="summary-end-date" class="mt-1 block w-full p-2 border border-slate-300 rounded-md">
+                    <label for="summary-end-date" class="block text-sm font-medium text-slate-700 dark:text-slate-300">עד תאריך:</label>
+                    <input type="date" id="summary-end-date" class="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300">
                 </div>
             </div>
             <div class="flex justify-center gap-4 mt-8">
@@ -257,13 +263,13 @@
     </div>
 
     <div id="email-selection-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
-            <h3 id="email-selection-modal-title" class="text-xl font-bold mb-6 text-center text-slate-800">בחר נמען למייל</h3>
+        <div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 id="email-selection-modal-title" class="text-xl font-bold mb-6 text-center text-slate-800 dark:text-slate-200">בחר נמען למייל</h3>
             <div id="email-options-container" class="space-y-3 mb-6">
                 </div>
             <div id="other-email-container" class="hidden mt-4">
-                <label for="other-email-input" class="block text-sm font-medium text-slate-700">כתובת מייל:</label>
-                <input type="email" id="other-email-input" class="mt-1 block w-full p-2 border border-slate-300 rounded-md" placeholder="example@email.com">
+                <label for="other-email-input" class="block text-sm font-medium text-slate-700 dark:text-slate-300">כתובת מייל:</label>
+                <input type="email" id="other-email-input" class="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300" placeholder="example@email.com">
             </div>
             <div class="flex justify-center gap-4 mt-6">
                 <button id="email-selection-cancel-btn" class="btn btn-slate px-6 py-2">ביטול</button>

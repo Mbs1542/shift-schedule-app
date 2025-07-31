@@ -4,8 +4,8 @@ import { displayDifferences, hideDifferencesContainer, closeModal, closeVacation
 import { handleExportToExcel, renderSchedule, sendFridaySummaryEmail, handleSendEmail } from './components/schedule.js';
 import { EMPLOYEES, DAYS, VACATION_EMPLOYEE_REPLACEMENT, CLIENT_ID, SCOPES } from './config.js';
 import * as hilanetParser from './services/hilanetParser.js';
-// *** MODIFIED: Import new helper functions ***
 import { formatDate, getWeekId, getWeekDates, showCustomConfirmation, setButtonLoading, restoreButton } from './utils.js';
+
 // --- Global Variables & State Management ---
 export let gapiInited = false;
 let gisInited = false;
@@ -39,10 +39,10 @@ export function updateStatus(text, type, showSpinner = false) {
     requestAnimationFrame(() => {
         if (DOMElements.statusIndicator) {
             const colors = {
-                info: 'text-slate-500',
-                success: 'text-green-600',
-                error: 'text-red-600',
-                loading: 'text-blue-600'
+                info: 'text-slate-500 dark:text-slate-400',
+                success: 'text-green-600 dark:text-green-500',
+                error: 'text-red-600 dark:text-red-500',
+                loading: 'text-blue-600 dark:text-blue-500'
             };
             let spinnerHtml = showSpinner ?
                 '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>' :
@@ -85,8 +85,8 @@ async function updateStepper(activeStep) {
                 const span = step.querySelector('span:first-child');
 
                 // Reset all styles first
-                step.classList.remove('text-blue-600', 'text-green-600');
-                span.classList.remove('border-blue-600', 'border-green-600', 'bg-blue-100', 'bg-green-100');
+                step.classList.remove('text-blue-600', 'text-green-600', 'dark:text-blue-500', 'dark:text-green-500');
+                span.classList.remove('border-blue-600', 'border-green-600', 'bg-blue-100', 'bg-green-100', 'dark:border-blue-500', 'dark:border-green-500', 'dark:bg-gray-700');
                 span.classList.add('border-gray-500');
                 if (span.firstChild && span.firstChild.tagName === 'svg') {
                 span.innerHTML = i;
@@ -94,15 +94,15 @@ async function updateStepper(activeStep) {
 
                 if (i < activeStep) {
                     // --- UPDATED: Completed step is now GREEN ---
-                    step.classList.add('text-green-600');
+                    step.classList.add('text-green-600', 'dark:text-green-500');
                     span.classList.remove('border-gray-500');
-                    span.classList.add('border-green-600', 'bg-green-100');
+                    span.classList.add('border-green-600', 'bg-green-100', 'dark:border-green-500', 'dark:bg-green-900/50');
                     span.innerHTML = `<svg class="w-3.5 h-3.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 16 12"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 5.917 5.724 10.5 15 1.5"/></svg>`;
                 } else if (i === activeStep) {
                     // Active step remains BLUE
-                    step.classList.add('text-blue-600');
+                    step.classList.add('text-blue-600', 'dark:text-blue-500');
                     span.classList.remove('border-gray-500');
-                    span.classList.add('border-blue-600');
+                    span.classList.add('border-blue-600', 'dark:border-blue-500');
                     span.textContent = i;
                 } else {
                     // Future step remains GRAY
@@ -289,9 +289,15 @@ async function handleVacationShift() {
     }
 }
 
+/**
+ * *** MODIFIED: Gemini Suggestion Logic ***
+ * This function now uses a more structured and precise prompt to get a shift suggestion.
+ * The prompt guides the AI to check each rule systematically for each available employee,
+ * ensuring a more deterministic and accurate recommendation based on the provided constraints.
+ */
 async function handleGeminiSuggestShift() {
     const button = DOMElements.geminiSuggestionBtn;
-    setButtonLoading(button, 'מציע...');
+    setButtonLoading(button, 'חושב...');
 
     try {
         const weekId = getWeekId(DOMElements.datePicker.value);
@@ -302,8 +308,9 @@ async function handleGeminiSuggestShift() {
         currentWeekDate.setDate(currentWeekDate.getDate() - 7);
         const previousWeekId = getWeekId(currentWeekDate.toISOString().split('T')[0]);
         const lastFridayWorker = allSchedules[previousWeekId]?.['שישי']?.morning?.employee || 'אף אחד';
-
-        const availableEmployees = EMPLOYEES.filter(e => e !== VACATION_EMPLOYEE_REPLACEMENT);
+        
+        // Only 'מאור' and 'מור' are available for suggestion.
+        const availableEmployees = EMPLOYEES.filter(e => e === 'מאור' || e === 'מור');
         let scheduleContext = "מצב נוכחי בסידור השבוע:\n";
         DAYS.forEach(dayName => {
             if (dayName === 'שבת') return;
@@ -313,29 +320,33 @@ async function handleGeminiSuggestShift() {
         });
 
         const prompt = `
-            אתה מומחה לשיבוץ משמרות. משימתך היא לנתח את הנתונים הבאים, לבחון את כל האפשרויות, ובסוף להמליץ על העובד המתאים ביותר למשמרת.
+            אתה מומחה לשיבוץ משמרות. משימתך היא לפעול כבוט מדויק.
+            יש רק שני עובדים רלוונטיים: מאור ומור.
+            עליך לנתח את הנתונים הבאים, לבדוק כל עובד מול כל חוק באופן שיטתי, ובסוף להמליץ על העובד המתאים ביותר.
 
             **1. נתונים:**
             - **המשמרת לשיבוץ:** יום ${day}, משמרת ${shiftType === 'morning' ? 'בוקר' : 'ערב'}.
-            - **עובדים זמינים:** ${availableEmployees.join(', ')}.
+            - **עובדים לבדיקה:** ${availableEmployees.join(', ')}.
             - **מי עבד בשישי שעבר:** ${lastFridayWorker}.
             - **סידור השבוע הנוכחי:**
             ${scheduleContext}
 
-            **2. חוקים (יש לפעול לפיהם במדויק):**
+            **2. חוקים (יש לפעול לפיהם במדויק, לפי הסדר):**
             - **חוק 1 (כפילות באותו יום):** לעובד אסור לעבוד שתי משמרות באותו יום.
             - **חוק 2 (חמישי-שישי):** אם עובד משובץ לבוקר יום שישי, הוא לא יכול לעבוד בחמישי ערב.
-            - **חוק 3 (מכסת שישי):** עובד שמשובץ לשישי בוקר לא יכול לעבוד יותר מ-4 משמרות בוקר ו-2 ערב באותו שבוע.
-            - **חוק 4 (מכסת חמישי):** עובד שמשובץ לחמישי ערב לא יכול לעבוד בשישי כלל, ולא יותר מ-3 משמרות ערב ו-2 בוקר.
-            - **חוק 5 (סבב שישי):** אסור לשבץ לשישי בוקר את מי שעבד בשישי שעבר (${lastFridayWorker}).
+            - **חוק 3 (סבב שישי):** אסור לשבץ לשישי בוקר את מי שעבד בשישי שעבר (${lastFridayWorker}).
+            - **חוק 4 (מכסת משמרות לשבוע):** לעובד אסור לעבוד יותר מ-5 משמרות בשבוע (סך הכל בוקר וערב).
 
-            **3. תהליך קבלת החלטות (חשוב מאוד!):**
-            א. עבור **כל אחד** מהעובדים הזמינים, בדוק האם שיבוצו במשמרת המבוקשת מפר אחד מהחוקים.
-            ב. פסול באופן מיידי כל עובד שהשיבוץ שלו יפר חוק כלשהו.
-            ג. מבין העובדים שנותרו, בחר את המתאים ביותר. אם יש כמה, בחר את זה עם הכי פחות משמרות עד כה.
+            **3. תהליך קבלת החלטות (חשוב מאוד - פעל לפי שלבים אלו במדויק):**
+            א. התחל עם רשימת כל העובדים הזמינים: [${availableEmployees.join(', ')}].
+            ב. עבור **כל אחד** מהעובדים ברשימה, בדוק אותו מול החוקים. אם הוא מפר חוק, פסול אותו והסבר מדוע.
+            ג. אם נשאר רק עובד אחד שעומד בכל החוקים, בחר בו.
+            ד. אם שני העובדים עומדים בכל החוקים, בחר את העובד עם המספר הנמוך ביותר של משמרות עד כה השבוע.
+            ה. אם מספר המשמרות שלהם שווה, בחר את 'מאור' כברירת מחדל.
+            ו. אם שני העובדים נפסלים, ההמלצה היא "אף אחד".
 
             **4. פלט נדרש:**
-            החזר **אך ורק** את שם העובד שבחרת. אם אף עובד אינו מתאים, החזר "אף אחד".
+            החזר **אך ורק** את שם העובד שבחרת. לדוגמה: "מאור" או "מור" או "אף אחד". אל תוסיף שום טקסט הסבר.
         `;
 
         updateStatus('מבקש הצעת שיבוץ מ-Gemini...', 'loading', true);
@@ -357,7 +368,11 @@ async function handleGeminiSuggestShift() {
             suggestedBtn.click();
             updateStatus(`Gemini הציע: ${suggestedEmployee}`, 'success');
         } else {
-            updateStatus(`Gemini הציע: ${suggestedEmployee}, אך השיבוץ אינו אפשרי.`, 'info');
+             if (suggestedEmployee === "אף אחד") {
+                updateStatus(`Gemini קבע שאין שיבוץ אפשרי.`, 'info');
+             } else {
+                updateStatus(`Gemini הציע: ${suggestedEmployee}, אך השיבוץ אינו אפשרי.`, 'info');
+             }
         }
     } catch (error) {
         displayAPIError(error, 'שגיאה בקבלת הצעת שיבוץ.');
@@ -410,7 +425,6 @@ async function handleUpload(file, isPdf, inputElement) {
 
             const allShifts = (await Promise.all(extractionPromises)).flat();
             
-            // MODIFIED: Added status update for better UI feedback
             updateStatus('ניתוח AI הושלם!', 'success');
             await updateStepper(3);
             updateStatus('הנתונים התקבלו, מבצע השוואה...', 'loading', true);
@@ -427,7 +441,7 @@ async function handleUpload(file, isPdf, inputElement) {
 
             displayDifferences(currentDifferences);
             updateStatus('השוואת הסידורים הושלמה!', 'success');
-            await updateStepper(4); // Mark all steps as complete
+            await updateStepper(4); 
 
         } catch (error) {
             displayAPIError(error, 'אירעה שגיאה בעיבוד הקובץ.');
@@ -482,7 +496,6 @@ async function handleImportSelectedHilanetShifts() {
     if (importedCount > 0) {
         const hourglass = document.getElementById('hourglass-loader');
         
-        // Hide table content and show loader overlay
         DOMElements.differencesDisplay.innerHTML = '';
         if (hourglass) hourglass.classList.remove('hidden');
         setProcessingStatus(true);
@@ -492,26 +505,25 @@ async function handleImportSelectedHilanetShifts() {
             await saveFullSchedule(allSchedules);
             renderSchedule(getWeekId(DOMElements.datePicker.value));
             
-            // Re-run comparison to show remaining differences
             const employeeName = selectedDifferences[0]?.hilanet?.employee || selectedDifferences[0]?.googleSheets?.employee;
             if (employeeName) {
                 const googleSheetsShifts = await getAllGoogleSheetsShiftsForEmployee(employeeName);
                 currentDifferences = hilanetParser.compareSchedules(googleSheetsShifts, currentHilanetShifts);
-                // Re-display the updated differences table
                 displayDifferences(currentDifferences);
             } else {
-                hideDifferencesContainer(); // Fallback if no employee name found
+                hideDifferencesContainer(); 
             }
 
             updateStatus(`יובאו ${importedCount} משמרות בהצלחה.`, 'success');
         } catch(error) {
             displayAPIError(error, 'שגיאה בשמירת המשמרות שיובאו.');
-            // Restore the view even on error
             displayDifferences(currentDifferences);
         } finally {
             if (hourglass) hourglass.classList.add('hidden');
             setProcessingStatus(false);
         }
+    } else {
+        updateStatus('לא יובאו משמרות. ייתכן שהמשמרות שנבחרו הן עבור יום שבת.', 'info');
     }
 }
 
@@ -568,7 +580,7 @@ function showImageMetadataModal(file, inputElement) {
 async function processImageWithMetadata(file, month, year, employeeName, inputElement) {
     DOMElements.differencesContainer.classList.remove('hidden');
     DOMElements.differencesContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    DOMElements.differencesDisplay.innerHTML = ''; // Clear previous results
+    DOMElements.differencesDisplay.innerHTML = ''; 
     setProcessingStatus(true);
     await updateStepper(1);
 
@@ -596,7 +608,6 @@ async function processImageWithMetadata(file, month, year, employeeName, inputEl
                 updateStatus('שולח תמונה לניתוח AI...', 'loading', true);
                 const extractedShifts = await hilanetParser.callGeminiForShiftExtraction(imageData, month, year, employeeName, 'generic');
                 
-                // MODIFIED: Added status update for better UI feedback
                 updateStatus('ניתוח AI הושלם!', 'success');
                 await updateStepper(3);
                 updateStatus('הנתונים התקבלו, מבצע השוואה...', 'loading', true);
@@ -614,7 +625,7 @@ async function processImageWithMetadata(file, month, year, employeeName, inputEl
     
                 displayDifferences(currentDifferences);
                 updateStatus('השוואת הסידורים הושלמה!', 'success');
-                await updateStepper(4); // Mark all steps as complete
+                await updateStepper(4); 
             } catch (error) {
                 displayAPIError(error, 'אירעה שגיאה בעיבוד התמונה.');
                 hideDifferencesContainer();
@@ -698,13 +709,16 @@ function initializeAppLogic() {
         summaryEndDateInput: document.getElementById('summary-end-date'),
         summaryConfirmBtn: document.getElementById('summary-confirm-btn'),
         summaryCancelBtn: document.getElementById('summary-cancel-btn'),
-        // NEW: Email modal elements
         emailSelectionModal: document.getElementById('email-selection-modal'),
         emailOptionsContainer: document.getElementById('email-options-container'),
         otherEmailContainer: document.getElementById('other-email-container'),
         otherEmailInput: document.getElementById('other-email-input'),
         emailSelectionConfirmBtn: document.getElementById('email-selection-confirm-btn'),
         emailSelectionCancelBtn: document.getElementById('email-selection-cancel-btn'),
+        // *** NEW: Theme toggle elements ***
+        themeToggleBtn: document.getElementById('theme-toggle-btn'),
+        themeToggleDarkIcon: document.getElementById('theme-toggle-dark-icon'),
+        themeToggleLightIcon: document.getElementById('theme-toggle-light-icon'),
     };
 
     function handleDownloadDifferences() {
@@ -739,7 +753,7 @@ function initializeAppLogic() {
         gisScript.onload = gisLoaded;
         document.head.appendChild(gisScript);
     }
-
+    
     // --- Attach all event listeners ---
     DOMElements.datePicker.addEventListener('change', () => renderSchedule(getWeekId(DOMElements.datePicker.value)));
     DOMElements.resetBtn.addEventListener('click', handleReset);
@@ -766,6 +780,7 @@ function initializeAppLogic() {
     DOMElements.summaryConfirmBtn.addEventListener('click', handleSendFridaySummary);
     DOMElements.summaryCancelBtn.addEventListener('click', closeFridaySummaryModal);
     document.getElementById('download-differences-btn').addEventListener('click', handleDownloadDifferences);
+    DOMElements.themeToggleBtn.addEventListener('click', toggleTheme);
 
     // --- Populate dropdowns ---
     EMPLOYEES.forEach(emp => {
@@ -777,7 +792,6 @@ function initializeAppLogic() {
         if (DOMElements.vacationEmployeeSelect) DOMElements.vacationEmployeeSelect.appendChild(option.cloneNode(true));
     });
 
-    // Corrected event listener for employee dropdown to trigger chart and event listener updates
     if (DOMElements.monthlySummaryEmployeeSelect) {
         DOMElements.monthlySummaryEmployeeSelect.addEventListener('change', () => {
             populateMonthSelector();
@@ -787,10 +801,39 @@ function initializeAppLogic() {
     }
 
     // --- Initial setup ---
+    initializeTheme(); // Set initial theme
     const today = new Date().toISOString().split('T')[0];
     DOMElements.datePicker.value = getWeekId(today);
     loadGoogleApiScripts();
 }
+
+/**
+ * *** NEW: Theme Management Functions ***
+ * These functions handle the day/night mode logic.
+ */
+function initializeTheme() {
+    if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+        DOMElements.themeToggleLightIcon.classList.remove('hidden');
+    } else {
+        document.documentElement.classList.remove('dark');
+        DOMElements.themeToggleDarkIcon.classList.remove('hidden');
+    }
+}
+
+function toggleTheme() {
+    const isDark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    
+    DOMElements.themeToggleDarkIcon.classList.toggle('hidden', !isDark);
+    DOMElements.themeToggleLightIcon.classList.toggle('hidden', isDark);
+
+    // We need to re-render charts as their colors might depend on the theme
+    if (!DOMElements.chartCard.classList.contains('hidden')) {
+        handleShowChart();
+    }
+}
+
 
 function showFridaySummaryModal() {
     if (gapi.client.getToken() === null) {

@@ -1,7 +1,8 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: 'class',
   content: [
-    "./*.html", // שנה את השורה הזו
+    "./*.html",
     "./JS/**/*.js",
   ],
   theme: {
