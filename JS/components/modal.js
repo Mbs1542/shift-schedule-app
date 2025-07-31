@@ -1,8 +1,8 @@
-import { DEFAULT_SHIFT_TIMES, EMPLOYEES, VACATION_EMPLOYEE_REPLACEMENT, DAYS } from "../config.js";
+import { DEFAULT_SHIFT_TIMES, EMPLOYEES, VACATION_EMPLOYEE_REPLACEMENT, DAYS, EMPLOYEE_EMAILS } from "../config.js";
 import { saveFullSchedule } from "../Api/googleApi.js";
 import { updateStatus, DOMElements, allSchedules } from "../main.js";
 import { getWeekId, formatDate } from "../utils.js";
-import { renderSchedule } from "./schedule.js";
+import { renderSchedule, handleSendEmail } from "./schedule.js";
 
 
 /**
@@ -306,4 +306,91 @@ export function hideDifferencesContainer() {
     if (DOMElements.differencesContainer) {
         DOMElements.differencesContainer.classList.add('hidden');
     }
+}
+
+export function showEmailSelectionModal() {
+    if (gapi.client.getToken() === null) {
+        updateStatus('יש להתחבר עם חשבון Google כדי לשלוח מייל.', 'info', false);
+        return;
+    }
+
+    const modal = DOMElements.emailSelectionModal;
+    const container = DOMElements.emailOptionsContainer;
+    const otherEmailContainer = DOMElements.otherEmailContainer;
+    const otherEmailInput = DOMElements.otherEmailInput;
+    const confirmBtn = DOMElements.emailSelectionConfirmBtn;
+    const cancelBtn = DOMElements.emailSelectionCancelBtn;
+
+    container.innerHTML = '';
+
+    const emailOptions = Object.keys(EMPLOYEE_EMAILS).filter(emp => emp !== 'טכנאי מרכז');
+    const options = [...emailOptions, 'אחר'];
+
+    options.forEach((option, index) => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center';
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = 'emailRecipient';
+        input.id = `email-option-${option}`;
+        input.value = option;
+        input.className = 'h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500';
+        if (index === 0) input.checked = true;
+
+        const label = document.createElement('label');
+        label.htmlFor = `email-option-${option}`;
+        label.textContent = option;
+        label.className = 'ms-2 text-slate-700';
+
+        div.appendChild(input);
+        div.appendChild(label);
+        container.appendChild(div);
+    });
+
+    const toggleOtherInput = () => {
+        const selected = container.querySelector('input[name="emailRecipient"]:checked').value;
+        otherEmailContainer.classList.toggle('hidden', selected !== 'אחר');
+    };
+
+    container.querySelectorAll('input[name="emailRecipient"]').forEach(radio => {
+        radio.addEventListener('change', toggleOtherInput);
+    });
+
+    toggleOtherInput();
+    otherEmailInput.value = '';
+
+    const closeEmailSelectionModal = () => {
+        if (modal) modal.classList.add('hidden');
+    };
+
+    const confirmHandler = async () => {
+        const selected = container.querySelector('input[name="emailRecipient"]:checked').value;
+        let recipientEmail = '';
+
+        if (selected === 'אחר') {
+            recipientEmail = otherEmailInput.value.trim();
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+                updateStatus('אנא הזן כתובת מייל תקינה.', 'error');
+                return;
+            }
+        } else {
+            recipientEmail = EMPLOYEE_EMAILS[selected];
+        }
+
+        closeEmailSelectionModal();
+        await handleSendEmail(recipientEmail);
+    };
+
+    // Use cloneNode to securely remove previous event listeners
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+    newConfirmBtn.addEventListener('click', confirmHandler);
+    DOMElements.emailSelectionConfirmBtn = newConfirmBtn; // Update DOM reference
+
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    newCancelBtn.addEventListener('click', closeEmailSelectionModal);
+    DOMElements.emailSelectionCancelBtn = newCancelBtn; // Update DOM reference
+
+    modal.classList.remove('hidden');
 }

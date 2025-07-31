@@ -1,7 +1,7 @@
 import { fetchData, handleCreateCalendarEvents, handleDeleteCalendarEvents, initializeGapiClient, saveFullSchedule } from './Api/googleApi.js';
 import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts, handleExportMonthlySummary, handleAnalyzeMonth, populateMonthSelector } from './components/charts.js';
 import { displayDifferences, hideDifferencesContainer, closeModal, closeVacationModal, handleModalSave, showEmployeeSelectionModal, showVacationModal, showEmailSelectionModal } from './components/modal.js';
-import { handleExportToExcel, renderSchedule, sendFridaySummaryEmail } from './components/schedule.js';
+import { handleExportToExcel, renderSchedule, sendFridaySummaryEmail, handleSendEmail } from './components/schedule.js';
 import { EMPLOYEES, DAYS, VACATION_EMPLOYEE_REPLACEMENT, CLIENT_ID, SCOPES } from './config.js';
 import * as hilanetParser from './services/hilanetParser.js';
 // *** MODIFIED: Import new helper functions ***
