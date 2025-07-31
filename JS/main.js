@@ -540,21 +540,21 @@ function initializeAppLogic() {
         uploadHilanetBtn: document.getElementById('upload-hilanet-btn'),
         uploadImageInput: document.getElementById('upload-image-input'),
         uploadImageBtn: document.getElementById('upload-image-btn'),
-        differencesContainer: document.getElementById('differences-container'), 
+        differencesContainer: document.getElementById('differences-container'),
         differencesDisplay: document.getElementById('differences-display'),
-        closeDifferencesBtn: document.getElementById('close-differences-btn'), 
+        closeDifferencesBtn: document.getElementById('close-differences-btn'),
         importSelectedHilanetShiftsBtn: document.getElementById('import-selected-hilanet-shifts-btn'),
         geminiSuggestionBtn: document.getElementById('gemini-suggestion-btn'),
         showChartBtn: document.getElementById('show-chart-btn'),
         chartCard: document.getElementById('chart-card'),
         monthlySummaryChartCard: document.getElementById('monthly-summary-chart-card'),
         monthlySummaryEmployeeSelect: document.getElementById('monthly-summary-employee-select'),
-        monthlySummaryMonthSelect: document.getElementById('monthly-summary-month-select'), 
-        monthSelectorContainer: document.getElementById('month-selector-container'), 
-        monthlyAnalysisContainer: document.getElementById('monthly-analysis-container'), 
-        monthlyAnalysisContent: document.getElementById('monthly-analysis-content'), 
-        exportMonthlySummaryBtn: document.getElementById('export-monthly-summary-btn'), 
-        analyzeMonthlySummaryBtn: document.getElementById('analyze-monthly-summary-btn'), 
+        monthlySummaryMonthSelect: document.getElementById('monthly-summary-month-select'),
+        monthSelectorContainer: document.getElementById('month-selector-container'),
+        monthlyAnalysisContainer: document.getElementById('monthly-analysis-container'),
+        monthlyAnalysisContent: document.getElementById('monthly-analysis-content'),
+        exportMonthlySummaryBtn: document.getElementById('export-monthly-summary-btn'),
+        analyzeMonthlySummaryBtn: document.getElementById('analyze-monthly-summary-btn'),
         imageMetadataModal: document.getElementById('image-metadata-modal'),
         employeeSelectionModal: document.getElementById('employee-selection-modal'),
         employeeSelectionModalTitle: document.getElementById('employee-selection-modal-title'),
@@ -571,23 +571,13 @@ function initializeAppLogic() {
             updateStatus('אין פערים להורדה.', 'info');
             return;
         }
-
         let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // BOM for Hebrew
         csvContent += "Type,Date,Day,Shift,Current Schedule,Hilanet Schedule\n";
-
         currentDifferences.forEach(diff => {
             const formatDetails = (shift) => shift ? `"${shift.employee} (${shift.start.substring(0, 5)}-${shift.end.substring(0, 5)})"` : '""';
-            const row = [
-                diff.type,
-                diff.date,
-                diff.dayName,
-                diff.shiftType,
-                formatDetails(diff.googleSheets),
-                formatDetails(diff.hilanet)
-            ].join(",");
+            const row = [diff.type, diff.date, diff.dayName, diff.shiftType, formatDetails(diff.googleSheets), formatDetails(diff.hilanet)].join(",");
             csvContent += row + "\n";
         });
-
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -603,14 +593,13 @@ function initializeAppLogic() {
         gapiScript.src = 'https://apis.google.com/js/api.js';
         gapiScript.onload = gapiLoaded;
         document.head.appendChild(gapiScript);
-
         const gisScript = document.createElement('script');
         gisScript.src = 'https://accounts.google.com/gsi/client';
         gisScript.onload = gisLoaded;
         document.head.appendChild(gisScript);
     }
 
-    // Attach all event listeners
+    // --- Attach all event listeners ---
     DOMElements.datePicker.addEventListener('change', () => renderSchedule(getWeekId(DOMElements.datePicker.value)));
     DOMElements.resetBtn.addEventListener('click', handleReset);
     DOMElements.emailBtn.addEventListener('click', handleSendEmail);
@@ -630,25 +619,39 @@ function initializeAppLogic() {
     DOMElements.uploadHilanetInput.addEventListener('change', (e) => handleUpload(e.target.files[0], true, e.target));
     DOMElements.uploadImageBtn.addEventListener('click', () => DOMElements.uploadImageInput.click());
     DOMElements.uploadImageInput.addEventListener('change', (e) => handleUpload(e.target.files[0], false, e.target));
-    DOMElements.closeDifferencesBtn.addEventListener('click', hideDifferencesContainer); // UPDATED
+    DOMElements.closeDifferencesBtn.addEventListener('click', hideDifferencesContainer);
     DOMElements.importSelectedHilanetShiftsBtn.addEventListener('click', handleImportSelectedHilanetShifts);
     DOMElements.sendFridaySummaryBtn.addEventListener('click', showFridaySummaryModal);
     DOMElements.summaryConfirmBtn.addEventListener('click', handleSendFridaySummary);
     DOMElements.summaryCancelBtn.addEventListener('click', closeFridaySummaryModal);
     document.getElementById('download-differences-btn').addEventListener('click', handleDownloadDifferences);
+    
+    // Corrected event listeners for chart controls
+    DOMElements.exportMonthlySummaryBtn.addEventListener('click', handleExportMonthlySummary);
+    DOMElements.analyzeMonthlySummaryBtn.addEventListener('click', handleAnalyzeMonth);
 
-    // Populate dropdowns
+    // --- Populate dropdowns ---
     EMPLOYEES.forEach(emp => {
         if (emp === VACATION_EMPLOYEE_REPLACEMENT) return;
         const option = document.createElement('option');
         option.value = emp;
         option.textContent = emp;
-        if(DOMElements.monthlySummaryEmployeeSelect) DOMElements.monthlySummaryEmployeeSelect.appendChild(option.cloneNode(true));
-        if(DOMElements.vacationEmployeeSelect) DOMElements.vacationEmployeeSelect.appendChild(option.cloneNode(true));
+        if (DOMElements.monthlySummaryEmployeeSelect) DOMElements.monthlySummaryEmployeeSelect.appendChild(option.cloneNode(true));
+        if (DOMElements.vacationEmployeeSelect) DOMElements.vacationEmployeeSelect.appendChild(option.cloneNode(true));
     });
-    if(DOMElements.monthlySummaryEmployeeSelect) DOMElements.monthlySummaryEmployeeSelect.addEventListener('change', updateMonthlySummaryChart);
+    
+    // Corrected event listeners for dropdowns to trigger chart updates
+    if (DOMElements.monthlySummaryEmployeeSelect) {
+        DOMElements.monthlySummaryEmployeeSelect.addEventListener('change', () => {
+            populateMonthSelector();
+            updateMonthlySummaryChart();
+        });
+    }
+    if (DOMElements.monthlySummaryMonthSelect) {
+        DOMElements.monthlySummaryMonthSelect.addEventListener('change', updateMonthlySummaryChart);
+    }
 
-    // Initial setup
+    // --- Initial setup ---
     const today = new Date().toISOString().split('T')[0];
     DOMElements.datePicker.value = getWeekId(today);
     loadGoogleApiScripts();
