@@ -109,11 +109,12 @@ async function onTokenResponse(resp) {
     await fetchData(); // Fetch data only after a successful token response
 }
 
-function checkSignInStatus() {
+async function checkSignInStatus() {
     const token = localStorage.getItem('google_access_token');
     if (token) {
         gapi.client.setToken({ access_token: token });
         updateSigninStatus(true);
+        await fetchData();
     } else {
         updateSigninStatus(false);
     }
@@ -548,7 +549,8 @@ function initializeAppLogic() {
         chartCard: document.getElementById('chart-card'),
         monthlySummaryChartCard: document.getElementById('monthly-summary-chart-card'),
         monthlySummaryEmployeeSelect: document.getElementById('monthly-summary-employee-select'),
-        monthlySummaryMonthSelect: document.getElementById('monthly-summary-month-select'), // FIXED
+        monthlySummaryMonthSelect: document.getElementById('monthly-summary-month-select'), 
+        monthSelectorContainer: document.getElementById('month-selector-container'), 
         imageMetadataModal: document.getElementById('image-metadata-modal'),
         employeeSelectionModal: document.getElementById('employee-selection-modal'),
         employeeSelectionModalTitle: document.getElementById('employee-selection-modal-title'),
