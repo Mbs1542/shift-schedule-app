@@ -204,108 +204,102 @@ export function displayDifferences(differences) {
     const displayArea = DOMElements.differencesDisplay;
     const modal = DOMElements.differencesModal;
     const statusArea = document.getElementById('differences-modal-status');
-    if (!displayArea || !modal || !statusArea) return;
+    const importBtn = DOMElements.importSelectedHilanetShiftsBtn;
+    const downloadBtn = document.getElementById('download-differences-btn');
 
-    displayArea.innerHTML = '';
-
-    if (differences.length === 0) {
-        statusArea.textContent = 'לא נמצאו פערים בין סידור העבודה לקובץ חילנט.';
-        displayArea.innerHTML = '<p class="text-center p-4">הכל מעודכן! ✅</p>';
-        if (DOMElements.importSelectedHilanetShiftsBtn) DOMElements.importSelectedHilanetShiftsBtn.style.display = 'none';
-        
-        const downloadBtn = document.getElementById('download-differences-btn');
-        if (downloadBtn) {
-            downloadBtn.style.display = 'none';
-        }
-
-        const selectAllContainer = document.querySelector('.select-all-container');
-        if (selectAllContainer) selectAllContainer.style.display = 'none';
-        modal.classList.remove('hidden');
+    if (!displayArea || !modal || !statusArea || !importBtn || !downloadBtn) {
+        console.error("One or more modal elements are missing from the DOM.");
         return;
     }
 
-    if (DOMElements.importSelectedHilanetShiftsBtn) DOMElements.importSelectedHilanetShiftsBtn.style.display = 'inline-block';
-    
-    const downloadBtn = document.getElementById('download-differences-btn');
-    if (downloadBtn) {
+    // Clear previous content
+    displayArea.innerHTML = '';
+
+    if (differences.length === 0) {
+        // Case: No differences found
+        statusArea.textContent = 'לא נמצאו פערים בין סידור העבודה לקובץ חילנט.';
+        displayArea.innerHTML = '<p class="text-center p-4">הכל מעודכן! ✅</p>';
+        importBtn.style.display = 'none';
+        downloadBtn.style.display = 'none';
+    } else {
+        // Case: Differences were found
+        statusArea.textContent = `נמצאו ${differences.length} פערים:`;
+        importBtn.style.display = 'inline-block';
         downloadBtn.style.display = 'inline-block';
-    }
 
-    statusArea.textContent = `נמצאו ${differences.length} פערים:`;
-
-    const table = document.createElement('table');
-    table.className = 'w-full border-collapse';
-    table.innerHTML = `
-        <thead>
-            <tr class="bg-slate-100 text-slate-800">
-                <th class="p-2 border border-slate-300 w-10">
-                    <div class="select-all-container flex items-center justify-center">
-                        <input type="checkbox" id="select-all-differences" class="h-4 w-4 text-blue-600 rounded">
-                    </div>
-                </th>
-                <th class="p-2 border border-slate-300">סוג שינוי</th>
-                <th class="p-2 border border-slate-300">תאריך</th>
-                <th class="p-2 border border-slate-300">משמרת</th>
-                <th class="p-2 border border-slate-300">סידור נוכחי</th>
-                <th class="p-2 border border-slate-300">סידור חילנט</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    `;
-
-    const tbody = table.querySelector('tbody');
-    differences.forEach(diff => {
-        const row = tbody.insertRow();
-        let rowClass = 'hover:bg-slate-100';
-        let typeHebrew = '';
-
-        switch(diff.type) {
-            case 'added':
-                rowClass = 'bg-green-100 hover:bg-green-200';
-                typeHebrew = 'קיים בחילנט בלבד';
-                break;
-            case 'removed':
-                rowClass = 'bg-red-100 hover:bg-red-200';
-                typeHebrew = 'קיים במערכת בלבד';
-                break;
-            case 'changed':
-                rowClass = 'bg-yellow-100 hover:bg-yellow-200';
-                typeHebrew = 'שונה';
-                break;
-        }
-        row.className = rowClass;
-
-        const formatDetails = (shift) => shift ? `${shift.employee} (${shift.start.substring(0, 5)}-${shift.end.substring(0, 5)})` : '—';
-        
-        const gsDetails = formatDetails(diff.googleSheets);
-        const hlDetails = formatDetails(diff.hilanet);
-
-        const canImport = diff.type === 'added' || diff.type === 'changed';
-        const checkboxHTML = canImport 
-            ? `<input type="checkbox" class="difference-checkbox h-4 w-4 text-blue-600 rounded" data-diff-id="${diff.id}">`
-            : '';
-
-        row.innerHTML = `
-            <td class="p-2 border border-slate-300 text-center">${checkboxHTML}</td>
-            <td class="p-2 border border-slate-300 font-medium">${typeHebrew}</td>
-            <td class="p-2 border border-slate-300">${formatDate(diff.date, { day: '2-digit', month: '2-digit' })} (${diff.dayName})</td>
-            <td class="p-2 border border-slate-300">${diff.shiftType === 'morning' ? 'בוקר' : 'ערב'}</td>
-            <td class="p-2 border border-slate-300">${gsDetails}</td>
-            <td class="p-2 border border-slate-300">${hlDetails}</td>
+        const table = document.createElement('table');
+        table.className = 'w-full border-collapse';
+        table.innerHTML = `
+            <thead>
+                <tr class="bg-slate-100 text-slate-800">
+                    <th class="p-2 border border-slate-300 w-10">
+                        <div class="flex items-center justify-center">
+                            <input type="checkbox" id="select-all-differences" class="h-4 w-4 text-blue-600 rounded">
+                        </div>
+                    </th>
+                    <th class="p-2 border border-slate-300">סוג שינוי</th>
+                    <th class="p-2 border border-slate-300">תאריך</th>
+                    <th class="p-2 border border-slate-300">משמרת</th>
+                    <th class="p-2 border border-slate-300">סידור נוכחי</th>
+                    <th class="p-2 border border-slate-300">סידור חילנט</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
         `;
-    });
 
-    displayArea.appendChild(table);
-    
-    const selectAllCheckbox = document.getElementById('select-all-differences');
-    if (selectAllCheckbox) {
-        selectAllCheckbox.checked = false; 
-        selectAllCheckbox.addEventListener('change', (e) => {
-            const checkboxes = document.querySelectorAll('.difference-checkbox');
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = e.target.checked;
-            });
+        const tbody = table.querySelector('tbody');
+        differences.forEach(diff => {
+            const row = tbody.insertRow();
+            let rowClass = 'hover:bg-slate-100';
+            let typeHebrew = '';
+
+            switch(diff.type) {
+                case 'added':
+                    rowClass = 'bg-green-100 hover:bg-green-200';
+                    typeHebrew = 'קיים בחילנט בלבד';
+                    break;
+                case 'removed':
+                    rowClass = 'bg-red-100 hover:bg-red-200';
+                    typeHebrew = 'קיים במערכת בלבד';
+                    break;
+                case 'changed':
+                    rowClass = 'bg-yellow-100 hover:bg-yellow-200';
+                    typeHebrew = 'שונה';
+                    break;
+            }
+            row.className = rowClass;
+
+            const formatDetails = (shift) => shift ? `${shift.employee} (${shift.start.substring(0, 5)}-${shift.end.substring(0, 5)})` : '—';
+            
+            const gsDetails = formatDetails(diff.googleSheets);
+            const hlDetails = formatDetails(diff.hilanet);
+
+            const canImport = diff.type === 'added' || diff.type === 'changed';
+            const checkboxHTML = canImport 
+                ? `<input type="checkbox" class="difference-checkbox h-4 w-4 text-blue-600 rounded" data-diff-id="${diff.id}">`
+                : '';
+
+            row.innerHTML = `
+                <td class="p-2 border border-slate-300 text-center">${checkboxHTML}</td>
+                <td class="p-2 border border-slate-300 font-medium">${typeHebrew}</td>
+                <td class="p-2 border border-slate-300">${formatDate(diff.date, { day: '2-digit', month: '2-digit' })} (${diff.dayName})</td>
+                <td class="p-2 border border-slate-300">${diff.shiftType === 'morning' ? 'בוקר' : 'ערב'}</td>
+                <td class="p-2 border border-slate-300">${gsDetails}</td>
+                <td class="p-2 border border-slate-300">${hlDetails}</td>
+            `;
         });
+
+        displayArea.appendChild(table);
+        
+        const selectAllCheckbox = document.getElementById('select-all-differences');
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', (e) => {
+                const checkboxes = document.querySelectorAll('.difference-checkbox');
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = e.target.checked;
+                });
+            });
+        }
     }
 
     modal.classList.remove('hidden');
