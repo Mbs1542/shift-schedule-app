@@ -21,8 +21,6 @@
 
     <div class="max-w-6xl mx-auto">
         <div class="text-center mb-6">
-            <!-- ### שינוי: נוסף מקום ללוגו ### -->
-            <!-- החלף את הקישור בקישור ללוגו שלך אחרי שתעלה אותו -->
             <img id="logo-img" src="https://placehold.co/200x80/e0e7ff/3730a3?text=הלוגו+שלך" alt="Logo" class="h-16 w-auto mx-auto mb-4 rounded-md">
             <h1 class="text-3xl md:text-4xl font-bold text-slate-800">מערכת סידור משמרות</h1>
             <p class="text-slate-600 mt-2 text-lg">הנתונים נשמרים ונקראים ישירות מ-Google Sheets.</p>
@@ -89,20 +87,27 @@
 
                 <div id="monthly-summary-chart-card" class="card hidden">
                     <h2 class="text-2xl font-semibold mb-4 text-slate-700 text-center">סיכום משמרות חודשי לעובד</h2>
-                    <!-- ### שינוי: נוספו כפתורים לייצוא וניתוח ### -->
+                    <!-- ### שינוי: נוספה בחירת חודש ### -->
                     <div class="flex flex-col sm:flex-row justify-center items-center gap-4 mb-4">
                         <div class="flex-grow w-full sm:w-auto">
                             <label for="monthly-summary-employee-select" class="block text-sm font-medium text-slate-700 mb-2">בחר עובד:</label>
                             <select id="monthly-summary-employee-select" class="p-2 border border-slate-300 rounded-md w-full max-w-xs">
                             </select>
                         </div>
-                        <button id="export-monthly-summary-btn" class="btn btn-green self-stretch sm:self-end">ייצא נתונים</button>
-                        <button id="analyze-monthly-summary-btn" class="btn btn-purple self-stretch sm:self-end">קבל תובנות AI</button>
+                        <!-- ### שינוי: מכל לבחירת חודש, יאוכלס דינמית ### -->
+                        <div id="month-selector-container" class="flex-grow w-full sm:w-auto hidden">
+                            <label for="monthly-summary-month-select" class="block text-sm font-medium text-slate-700 mb-2">בחר חודש:</label>
+                            <select id="monthly-summary-month-select" class="p-2 border border-slate-300 rounded-md w-full max-w-xs">
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex justify-center gap-3 mb-6">
+                         <button id="export-monthly-summary-btn" class="btn btn-green">ייצא נתונים</button>
+                         <button id="analyze-monthly-summary-btn" class="btn btn-purple">קבל תובנות AI</button>
                     </div>
                     <div class="chart-container">
                         <canvas id="monthly-summary-chart"></canvas>
                     </div>
-                    <!-- ### שינוי: נוסף אזור להצגת תובנות AI ### -->
                     <div id="monthly-analysis-container" class="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-200 hidden">
                         <h4 class="font-semibold text-lg text-slate-800 mb-2">תובנות על החודש</h4>
                         <div id="monthly-analysis-content" class="text-slate-600 whitespace-pre-wrap"></div>

@@ -1,6 +1,5 @@
 import { fetchData, handleCreateCalendarEvents, handleDeleteCalendarEvents, initializeGapiClient, saveFullSchedule } from './Api/googleApi.js';
-// ### שינוי: נוספו ייבואים עבור הפונקציות החדשות ###
-import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts, handleExportMonthlySummary, handleAnalyzeMonth } from './components/charts.js';
+import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts, handleExportMonthlySummary, handleAnalyzeMonth, populateMonthSelector } from './components/charts.js';
 import { closeDifferencesModal, closeModal, closeVacationModal, displayDifferences, handleModalSave, showEmployeeSelectionModal, showVacationModal } from './components/modal.js';
 import { handleExportToExcel, handleSendEmail, renderSchedule, sendFridaySummaryEmail } from './components/schedule.js';
 import { EMPLOYEES, DAYS, VACATION_EMPLOYEE_REPLACEMENT, CLIENT_ID, SCOPES } from './config.js';
@@ -273,7 +272,10 @@ async function handleGeminiSuggestShift() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt })
         });
-        if (!response.ok) throw new Error((await response.json()).error);
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to get suggestion');
+        }
 
         const result = await response.json();
         const suggestedEmployee = result.suggestion.trim();
@@ -469,12 +471,14 @@ function initializeAppLogic() {
         summaryEndDateInput: document.getElementById('summary-end-date'),
         summaryConfirmBtn: document.getElementById('summary-confirm-btn'),
         summaryCancelBtn: document.getElementById('summary-cancel-btn'),
-        // ### שינוי: נוספו אלמנטים חדשים ###
         logoImg: document.getElementById('logo-img'),
         exportMonthlySummaryBtn: document.getElementById('export-monthly-summary-btn'),
         analyzeMonthlySummaryBtn: document.getElementById('analyze-monthly-summary-btn'),
         monthlyAnalysisContainer: document.getElementById('monthly-analysis-container'),
         monthlyAnalysisContent: document.getElementById('monthly-analysis-content'),
+        // ### שינוי: נוספו אלמנטים חדשים ###
+        monthSelectorContainer: document.getElementById('month-selector-container'),
+        monthlySummaryMonthSelect: document.getElementById('monthly-summary-month-select'),
     };
 
     function loadGoogleApiScripts() {
@@ -516,9 +520,24 @@ function initializeAppLogic() {
     DOMElements.summaryConfirmBtn.addEventListener('click', handleSendFridaySummary);
     DOMElements.summaryCancelBtn.addEventListener('click', closeFridaySummaryModal);
     
-    // ### שינוי: נוספו מאזיני אירועים ###
     DOMElements.exportMonthlySummaryBtn.addEventListener('click', handleExportMonthlySummary);
     DOMElements.analyzeMonthlySummaryBtn.addEventListener('click', handleAnalyzeMonth);
+
+    // ### שינוי: לוגיקה חדשה עבור בחירת עובד וחודש ###
+    DOMElements.monthlySummaryEmployeeSelect.addEventListener('change', () => {
+        populateMonthSelector();
+        updateMonthlySummaryChart();
+        if (DOMElements.monthlyAnalysisContainer) {
+            DOMElements.monthlyAnalysisContainer.classList.add('hidden');
+        }
+    });
+
+    DOMElements.monthlySummaryMonthSelect.addEventListener('change', () => {
+        updateMonthlySummaryChart();
+        if (DOMElements.monthlyAnalysisContainer) {
+            DOMElements.monthlyAnalysisContainer.classList.add('hidden');
+        }
+    });
 
     // Populate dropdowns
     EMPLOYEES.forEach(emp => {
@@ -527,17 +546,8 @@ function initializeAppLogic() {
         option.value = emp;
         option.textContent = emp;
         DOMElements.monthlySummaryEmployeeSelect.appendChild(option.cloneNode(true));
-        // ### תיקון: הבטחה שגם רשימת החופשה מתמלאת ###
         if (DOMElements.vacationEmployeeSelect) {
             DOMElements.vacationEmployeeSelect.appendChild(option.cloneNode(true));
-        }
-    });
-    
-    // ### שינוי: הסתרת ניתוח AI בעת שינוי עובד ###
-    DOMElements.monthlySummaryEmployeeSelect.addEventListener('change', () => {
-        updateMonthlySummaryChart();
-        if (DOMElements.monthlyAnalysisContainer) {
-            DOMElements.monthlyAnalysisContainer.classList.add('hidden');
         }
     });
 
@@ -551,7 +561,6 @@ function showFridaySummaryModal() {
         updateStatus('יש להתחבר עם חשבון Google.', 'info');
         return;
     }
-    // Set default dates to the current month
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
     const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];

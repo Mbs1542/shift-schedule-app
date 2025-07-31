@@ -1,7 +1,7 @@
 import { DEFAULT_SHIFT_TIMES, EMPLOYEES, VACATION_EMPLOYEE_REPLACEMENT, DAYS } from "../config.js";
 import { saveFullSchedule } from "../Api/googleApi.js";
 import { updateStatus, DOMElements, allSchedules } from "../main.js";
-import { getWeekId } from "../utils.js";
+import { getWeekId, formatDate } from "../utils.js";
 import { renderSchedule } from "./schedule.js";
 
 
@@ -89,18 +89,16 @@ export async function handleModalSave() {
     const startTime = DOMElements.shiftStartTimeInput.value;
     const endTime = DOMElements.shiftEndTimeInput.value;
 
-    // ### שינוי: נוספה בדיקת תקינות זמנים ###
-    // בדיקה פשוטה שמוודאת ששעת הסיום אינה לפני שעת ההתחלה באותו היום
     if (endTime < startTime) {
         updateStatus('שגיאה: שעת הסיום אינה יכולה להיות לפני שעת ההתחלה.', 'error');
-        return; // מונע את השמירה
+        return;
     }
 
     if (!allSchedules[weekId]) allSchedules[weekId] = {};
     if (!allSchedules[weekId][day]) allSchedules[weekId][day] = {};
     allSchedules[weekId][day][shift] = {
         employee,
-        start: startTime + ':00', // מוסיף שניות בחזרה לצורך עקביות
+        start: startTime + ':00',
         end: endTime + ':00'
     };
 

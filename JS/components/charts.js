@@ -31,6 +31,8 @@ export async function handleShowChart() {
     if (isHidden) {
         DOMElements.chartCard.classList.remove('hidden');
         DOMElements.monthlySummaryEmployeeSelect.value = 'מאור';
+        // ### שינוי: קריאה לפונקציות החדשות ###
+        populateMonthSelector();
         updateMonthlySummaryChart();
 
         setTimeout(() => {
@@ -118,7 +120,7 @@ export async function handleShowChart() {
     updateStatus('גרף המשמרות הוצג בהצלחה!', 'success', false);
 }
 
-/** Helper function to gather all monthly data for an employee */
+/** ### חדש: פונקציה לאיסוף נתונים חודשיים ### */
 function getMonthlyDataForEmployee(employeeName) {
     const monthlyData = {};
 
@@ -156,44 +158,71 @@ function getMonthlyDataForEmployee(employeeName) {
     return monthlyData;
 }
 
-
-export function updateMonthlySummaryChart() {
+/** ### חדש: פונקציה לאכלוס בורר החודשים ### */
+export function populateMonthSelector() {
     const selectedEmployee = DOMElements.monthlySummaryEmployeeSelect.value;
+    const monthSelect = DOMElements.monthlySummaryMonthSelect;
+    const monthContainer = DOMElements.monthSelectorContainer;
+
+    monthSelect.innerHTML = ''; // נקה אפשרויות קודמות
+    
     if (!selectedEmployee) {
-        if (monthlySummaryChart) monthlySummaryChart.destroy();
-        monthlySummaryChart = null;
-        DOMElements.monthlySummaryChartCard.classList.add('hidden');
+        monthContainer.classList.add('hidden');
         return;
     }
 
     const monthlyData = getMonthlyDataForEmployee(selectedEmployee);
-    const sortedMonths = Object.keys(monthlyData).sort();
+    const sortedMonths = Object.keys(monthlyData).sort().reverse(); // הצג את החדש ביותר קודם
 
     if (sortedMonths.length === 0) {
-        updateStatus(`לא נמצאו נתונים חודשיים עבור ${selectedEmployee}.`, 'info');
+        monthContainer.classList.add('hidden');
+        return;
+    }
+
+    sortedMonths.forEach(monthKey => {
+        const option = document.createElement('option');
+        option.value = monthKey;
+        option.textContent = formatMonthYear(monthKey);
+        monthSelect.appendChild(option);
+    });
+
+    monthContainer.classList.remove('hidden');
+}
+
+
+/** ### שינוי: הפונקציה עודכנה להציג גרף עבור חודש בודד ### */
+export function updateMonthlySummaryChart() {
+    const selectedEmployee = DOMElements.monthlySummaryEmployeeSelect.value;
+    const selectedMonth = DOMElements.monthlySummaryMonthSelect.value;
+    
+    if (!selectedEmployee || !selectedMonth) {
+        if (monthlySummaryChart) monthlySummaryChart.destroy();
+        monthlySummaryChart = null;
+        DOMElements.monthlySummaryChartCard.classList.add('hidden');
+        return;
+    }
+
+    const allMonthlyData = getMonthlyDataForEmployee(selectedEmployee);
+    const dataForMonth = allMonthlyData[selectedMonth];
+
+    if (!dataForMonth) {
+        updateStatus(`לא נמצאו נתונים עבור ${selectedEmployee} בחודש ${formatMonthYear(selectedMonth)}.`, 'info');
         DOMElements.monthlySummaryChartCard.classList.add('hidden');
         if (monthlySummaryChart) monthlySummaryChart.destroy();
         monthlySummaryChart = null;
         return;
     }
 
-    const totalHoursForAllMonths = sortedMonths.reduce((total, month) => total + monthlyData[month].totalHours, 0);
-    const formattedLabels = sortedMonths.map(formatMonthYear);
-    const monthlyMorningData = sortedMonths.map(month => monthlyData[month].morning);
-    const monthlyEveningData = sortedMonths.map(month => monthlyData[month].evening);
-
     const chartConfig = {
         type: 'bar',
         data: {
-            labels: formattedLabels,
+            labels: ['משמרות בוקר', 'משמרות ערב'],
             datasets: [{
-                label: 'משמרות בוקר',
-                data: monthlyMorningData,
-                backgroundColor: '#3B82F6'
-            }, {
-                label: 'משמרות ערב',
-                data: monthlyEveningData,
-                backgroundColor: '#8B5CF6'
+                label: 'כמות משמרות',
+                data: [dataForMonth.morning, dataForMonth.evening],
+                backgroundColor: ['#3B82F6', '#8B5CF6'],
+                borderColor: ['#2563EB', '#7C3AED'],
+                borderWidth: 1
             }]
         },
         options: {
@@ -202,16 +231,15 @@ export function updateMonthlySummaryChart() {
             scales: {
                 y: {
                     beginAtZero: true,
-                    title: { display: true, text: 'מספר משמרות' },
                     ticks: { stepSize: 1 }
-                },
-                x: {
-                    title: { display: true, text: 'חודש' }
                 }
             },
             plugins: {
-                legend: { display: true, position: 'top' },
-                title: { display: true, text: `סיכום חודשי ל${selectedEmployee} (סה"כ: ${totalHoursForAllMonths.toFixed(2)} שעות)` }
+                legend: { display: false },
+                title: { 
+                    display: true, 
+                    text: `סיכום ל${selectedEmployee} בחודש ${formatMonthYear(selectedMonth)} (סה"כ: ${dataForMonth.totalHours.toFixed(2)} שעות)` 
+                }
             }
         }
     };
@@ -222,61 +250,60 @@ export function updateMonthlySummaryChart() {
     DOMElements.monthlySummaryChartCard.classList.remove('hidden');
 }
 
-/** ### חדש: ייצוא סיכום חודשי לקובץ CSV ### */
+/** ### שינוי: הפונקציה עודכנה לייצא נתונים עבור החודש הנבחר ### */
 export function handleExportMonthlySummary() {
     const selectedEmployee = DOMElements.monthlySummaryEmployeeSelect.value;
-    if (!selectedEmployee) {
-        updateStatus('יש לבחור עובד לייצוא.', 'info');
+    const selectedMonth = DOMElements.monthlySummaryMonthSelect.value;
+
+    if (!selectedEmployee || !selectedMonth) {
+        updateStatus('יש לבחור עובד וחודש לייצוא.', 'info');
         return;
     }
 
-    const monthlyData = getMonthlyDataForEmployee(selectedEmployee);
-    const sortedMonths = Object.keys(monthlyData).sort();
+    const allMonthlyData = getMonthlyDataForEmployee(selectedEmployee);
+    const dataToExport = allMonthlyData[selectedMonth];
 
-    if (sortedMonths.length === 0) {
-        updateStatus(`לא נמצאו נתונים לייצוא עבור ${selectedEmployee}.`, 'info');
+    if (!dataToExport || dataToExport.shifts.length === 0) {
+        updateStatus(`לא נמצאו נתונים לייצוא עבור ${selectedEmployee} בחודש הנבחר.`, 'info');
         return;
     }
 
-    let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // \uFEFF for BOM to support Hebrew in Excel
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // BOM for Hebrew
     csvContent += "Date,Day,Shift Type,Start Time,End Time,Duration (Hours)\n";
 
-    sortedMonths.forEach(monthKey => {
-        monthlyData[monthKey].shifts.forEach(shift => {
-            const row = [shift.date, shift.dayName, shift.shiftType, shift.start, shift.end, shift.duration.toFixed(2)];
-            csvContent += row.join(",") + "\n";
-        });
+    dataToExport.shifts.forEach(shift => {
+        const row = [shift.date, shift.dayName, shift.shiftType, shift.start, shift.end, shift.duration.toFixed(2)];
+        csvContent += row.join(",") + "\n";
     });
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `monthly_summary_${selectedEmployee}.csv`);
+    link.setAttribute("download", `monthly_summary_${selectedEmployee}_${selectedMonth}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     updateStatus('הנתונים יוצאו בהצלחה.', 'success');
 }
 
-/** ### חדש: קבלת ניתוח חודשי מ-AI ### */
+/** ### שינוי: הפונקציה עודכנה לנתח את החודש הנבחר ### */
 export async function handleAnalyzeMonth() {
     const selectedEmployee = DOMElements.monthlySummaryEmployeeSelect.value;
-    if (!selectedEmployee) {
-        updateStatus('יש לבחור עובד לניתוח.', 'info');
+    const selectedMonth = DOMElements.monthlySummaryMonthSelect.value;
+
+    if (!selectedEmployee || !selectedMonth) {
+        updateStatus('יש לבחור עובד וחודש לניתוח.', 'info');
         return;
     }
 
-    const monthlyData = getMonthlyDataForEmployee(selectedEmployee);
-    const sortedMonths = Object.keys(monthlyData).sort();
-    
-    if (sortedMonths.length === 0) {
-        updateStatus(`לא נמצאו נתונים לניתוח עבור ${selectedEmployee}.`, 'info');
+    const allMonthlyData = getMonthlyDataForEmployee(selectedEmployee);
+    const dataToAnalyze = allMonthlyData[selectedMonth];
+
+    if (!dataToAnalyze || dataToAnalyze.shifts.length === 0) {
+        updateStatus(`לא נמצאו נתונים לניתוח עבור ${selectedEmployee} בחודש הנבחר.`, 'info');
         return;
     }
     
-    const latestMonthKey = sortedMonths[sortedMonths.length - 1];
-    const dataToAnalyze = monthlyData[latestMonthKey];
-
     updateStatus('מנתח את החודש עם AI...', 'loading', true);
     DOMElements.monthlyAnalysisContainer.classList.add('hidden');
 
@@ -286,7 +313,7 @@ export async function handleAnalyzeMonth() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
                 employee: selectedEmployee,
-                month: latestMonthKey,
+                month: selectedMonth,
                 shifts: dataToAnalyze.shifts 
             })
         });
