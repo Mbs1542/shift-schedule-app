@@ -1075,10 +1075,6 @@ body {
   margin-bottom: calc(1rem * var(--tw-space-y-reverse));
 }
 
-.self-stretch {
-  align-self: stretch;
-}
-
 .overflow-x-auto {
   overflow-x: auto;
 }
@@ -1398,10 +1394,6 @@ body {
 
   .sm\:flex-row {
     flex-direction: row;
-  }
-
-  .sm\:self-end {
-    align-self: flex-end;
   }
 
   .sm\:p-6 {
