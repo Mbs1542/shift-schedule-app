@@ -12,7 +12,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
-        // הגדרת נתיב ה-worker עבור PDF.js כדי למנוע אזהרות
+        // Set the worker source for PDF.js to avoid warnings
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
 </head>
@@ -59,6 +59,22 @@
             </div>
 
             <div id="schedule-card" class="card">
+                <!-- Hourglass Loader for importing shifts -->
+                <div id="hourglass-loader" class="hidden">
+                    <p class="text-center font-semibold text-slate-600 mb-2">מייבא משמרות ושומר...</p>
+                    <div class="hourglassBackground">
+                        <div class="hourglassContainer">
+                            <div class="hourglassCurves"></div>
+                            <div class="hourglassCapTop"></div>
+                            <div class="hourglassGlassTop"></div>
+                            <div class="hourglassSand"></div>
+                            <div class="hourglassSandStream"></div>
+                            <div class="hourglassCapBottom"></div>
+                            <div class="hourglassGlass"></div>
+                        </div>
+                    </div>
+                </div>
+                
                 <h2 id="schedule-title" class="text-2xl font-semibold mb-4 text-slate-700 text-center"></h2>
                 <div class="overflow-x-auto">
                     <table id="schedule-table" class="w-full text-center text-slate-700 border-collapse">
