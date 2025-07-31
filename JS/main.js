@@ -78,30 +78,28 @@ function updateStepper(activeStep) {
         const step = document.getElementById(`step-${i}`);
         const span = step.querySelector('span:first-child');
 
-        // Reset styles
-        step.classList.remove('text-blue-600');
-        span.classList.remove('border-blue-600', 'bg-blue-100');
+        // Reset all styles first
+        step.classList.remove('text-blue-600', 'text-green-600');
+        span.classList.remove('border-blue-600', 'border-green-600', 'bg-blue-100', 'bg-green-100');
         span.classList.add('border-gray-500');
-        // Clear previous icon
         if (span.firstChild && span.firstChild.tagName === 'svg') {
            span.innerHTML = i;
         }
 
-
         if (i < activeStep) {
-            // Completed step
-            step.classList.add('text-blue-600');
+            // --- UPDATED: Completed step is now GREEN ---
+            step.classList.add('text-green-600');
             span.classList.remove('border-gray-500');
-            span.classList.add('border-blue-600', 'bg-blue-100');
+            span.classList.add('border-green-600', 'bg-green-100');
             span.innerHTML = `<svg class="w-3.5 h-3.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 16 12"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 5.917 5.724 10.5 15 1.5"/></svg>`;
         } else if (i === activeStep) {
-            // Active step
+            // Active step remains BLUE
             step.classList.add('text-blue-600');
             span.classList.remove('border-gray-500');
             span.classList.add('border-blue-600');
             span.textContent = i;
         } else {
-            // Future step
+            // Future step remains GRAY
             span.textContent = i;
         }
     }
