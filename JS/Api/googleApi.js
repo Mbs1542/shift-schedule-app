@@ -1,11 +1,11 @@
 import { SPREADSHEET_ID, SHEET_NAME, DAYS } from "../config.js";
-// *** שינוי: ייבוא המשתנה הגלובלי לשמירת האירועים ***
 import { displayAPIError, allSchedules, DOMElements, updateStatus, allCreatedCalendarEvents } from "../main.js";
 import { renderSchedule } from '../components/schedule.js';
-import { getWeekDates, getWeekId, createMessage, showCustomConfirmation } from "../utils.js"; 
+// ייבוא כל הפונקציות הנדרשות מהקוד החדש והישן
+import { getWeekDates, getWeekId, createMessage, showCustomConfirmation, setButtonLoading, restoreButton } from "../utils.js";
 
 /**
- * Initializes the GAPI client.
+ * מאתחל את ה-GAPI client (מהקוד הישן).
  */
 export async function initializeGapiClient() {
     try {
@@ -21,19 +21,26 @@ export async function initializeGapiClient() {
     }
 }
 
+/**
+ * טוען נתונים מ-Google Sheets עם הלוגיקה המלאה מהקוד הישן.
+ */
 export async function fetchData() {
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי לטעון נתונים.', 'info');
         return;
     }
-    updateStatus('טוען נתונים...', 'loading', true);
+    
+    const button = DOMElements.refreshDataBtn;
+    setButtonLoading(button, 'מרענן...');
 
     try {
+        updateStatus('טוען נתונים...', 'loading', true);
         const response = await gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
             range: `${SHEET_NAME}!A:F`,
         });
 
+        // --- התחלת לוגיקה מהקוד הישן ---
         const values = response.result.values;
         Object.keys(allSchedules).forEach(key => delete allSchedules[key]);
 
@@ -41,7 +48,7 @@ export async function fetchData() {
             console.log('No data found.');
             updateStatus('לא נמצאו נתונים בגיליון. ניתן להתחיל להוסיף משמרות.', 'info');
             renderSchedule(getWeekId(DOMElements.datePicker.value));
-            return;
+            return; // היציאה המוקדמת תפעיל את בלוק ה-finally
         }
 
         const headers = values[0];
@@ -73,14 +80,20 @@ export async function fetchData() {
         const currentWeekId = getWeekId(DOMElements.datePicker.value);
         renderSchedule(currentWeekId);
         updateStatus('הנתונים נטענו בהצלחה!', 'success');
+        // --- סוף לוגיקה מהקוד הישן ---
 
     } catch (err) {
         console.error('Error fetching data from Google Sheets:', err);
         const errorMessage = err.result?.error?.message || err.message || 'תקלה לא ידועה';
         displayAPIError(err, `שגיאה בטעינת הנתונים מ-Google Sheets: ${errorMessage}`);
+    } finally {
+        restoreButton(button);
     }
 }
 
+/**
+ * שומר את כל סידור העבודה ל-Google Sheets (מהקוד הישן).
+ */
 export async function saveFullSchedule(fullScheduleData) {
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי לשמור נתונים.', 'info', false);
@@ -134,6 +147,10 @@ export async function saveFullSchedule(fullScheduleData) {
     }
 }
 
+
+/**
+ * שולח אימייל עם Gmail API.
+ */
 export async function sendEmailWithGmailApi(to, subject, messageBody) {
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי לשלוח מייל.', 'info', false);
@@ -149,12 +166,13 @@ export async function sendEmailWithGmailApi(to, subject, messageBody) {
         updateStatus('המייל נשלח בהצלחה!', 'success', false);
     } catch (err) {
         displayAPIError(err, 'שגיאה בשליחת המייל דרך Gmail API');
+        // זריקה מחדש כדי שפונקציה קוראת תוכל לתפוס את השגיאה במידת הצורך
+        throw err;
     }
 }
 
 /**
- * --- שדרוג ---
- * יוצר אירועים ביומן גוגל ושומר את המזהים שלהם.
+ * יוצר אירועים ביומן גוגל עם הלוגיקה המלאה מהקוד הישן.
  */
 export async function handleCreateCalendarEvents(selectedEmployees) {
     if (gapi.client.getToken() === null) {
@@ -165,75 +183,81 @@ export async function handleCreateCalendarEvents(selectedEmployees) {
         updateStatus('לא נבחרו עובדים.', 'info');
         return;
     }
-    const weekId = getWeekId(DOMElements.datePicker.value);
-    const scheduleDataForWeek = allSchedules[weekId];
-    if (!scheduleDataForWeek) {
-        updateStatus('אין נתוני סידור לשבוע זה.', 'info');
-        return;
-    }
 
-    updateStatus(`יוצר אירועי יומן עבור ${selectedEmployees.join(', ')}...`, 'loading', true);
-    
-    const weekDates = getWeekDates(new Date(weekId));
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const creationTasks = [];
-
-    weekDates.forEach(date => {
-        const dayName = DAYS[date.getDay()];
-        const dayData = scheduleDataForWeek[dayName] || {};
-        const dateISO = date.toISOString().split('T')[0];
-
-        ['morning', 'evening'].forEach(shiftType => {
-            if (dayName === 'שבת' || (dayName === 'שישי' && shiftType === 'evening')) return;
-
-            const shiftDetails = dayData[shiftType];
-            if (shiftDetails && shiftDetails.employee !== 'none' && selectedEmployees.includes(shiftDetails.employee)) {
-                
-                const event = {
-                    'summary': `משמרת ${shiftType === 'morning' ? 'בוקר' : 'ערב'} (${shiftDetails.employee})`,
-                    'location': 'אסותא',
-                    'start': { 'dateTime': `${dateISO}T${shiftDetails.start}`, 'timeZone': timeZone },
-                    'end': { 'dateTime': `${dateISO}T${shiftDetails.end}`, 'timeZone': timeZone }
-                };
-
-                // אריזת הבקשה עם המידע הנלווה כדי לדעת איזה אירוע נוצר
-                creationTasks.push({
-                    promise: gapi.client.calendar.events.insert({ 'calendarId': 'primary', 'resource': event }),
-                    shiftKey: `${weekId}-${dayName}-${shiftType}` // מפתח ייחודי למשמרת
-                });
-            }
-        });
-    });
-
-    if (creationTasks.length === 0) {
-        updateStatus('לא נמצאו משמרות לעובדים הנבחרים.', 'info');
-        return;
-    }
-
+    const button = DOMElements.createCalendarEventsBtn;
+    setButtonLoading(button, 'יוצר...');
     try {
+        // --- התחלת לוגיקה מהקוד הישן ---
+        const weekId = getWeekId(DOMElements.datePicker.value);
+        const scheduleDataForWeek = allSchedules[weekId];
+        if (!scheduleDataForWeek) {
+            updateStatus('אין נתוני סידור לשבוע זה.', 'info');
+            return; // יציאה מוקדמת תפעיל את finally
+        }
+
+        updateStatus(`יוצר אירועי יומן עבור ${selectedEmployees.join(', ')}...`, 'loading', true);
+        
+        const weekDates = getWeekDates(new Date(weekId));
+        const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const creationTasks = [];
+
+        weekDates.forEach(date => {
+            const dayName = DAYS[date.getDay()];
+            const dayData = scheduleDataForWeek[dayName] || {};
+            const dateISO = date.toISOString().split('T')[0];
+
+            ['morning', 'evening'].forEach(shiftType => {
+                if (dayName === 'שבת' || (dayName === 'שישי' && shiftType === 'evening')) return;
+
+                const shiftDetails = dayData[shiftType];
+                if (shiftDetails && shiftDetails.employee !== 'none' && selectedEmployees.includes(shiftDetails.employee)) {
+                    
+                    const event = {
+                        'summary': `משמרת ${shiftType === 'morning' ? 'בוקר' : 'ערב'} (${shiftDetails.employee})`,
+                        'location': 'אסותא',
+                        'start': { 'dateTime': `${dateISO}T${shiftDetails.start}`, 'timeZone': timeZone },
+                        'end': { 'dateTime': `${dateISO}T${shiftDetails.end}`, 'timeZone': timeZone }
+                    };
+
+                    creationTasks.push({
+                        promise: gapi.client.calendar.events.insert({ 'calendarId': 'primary', 'resource': event }),
+                        shiftKey: `${weekId}-${dayName}-${shiftType}`
+                    });
+                }
+            });
+        });
+        // --- סוף לוגיקה מהקוד הישן ---
+
+        if (creationTasks.length === 0) {
+            updateStatus('לא נמצאו משמרות לעובדים הנבחרים.', 'info');
+            return; // יציאה מוקדמת תפעיל את finally
+        }
+
         const promises = creationTasks.map(task => task.promise);
         const results = await Promise.all(promises);
         
+        // --- התחלת לוגיקה מהקוד הישן ---
         results.forEach((response, index) => {
             const createdEvent = response.result;
             if (createdEvent && createdEvent.id) {
                 const task = creationTasks[index];
-                // שמירת המזהה של האירוע שנוצר במפה הגלובלית
                 allCreatedCalendarEvents[task.shiftKey] = createdEvent.id;
             }
         });
 
         console.log("אירועים שנוצרו ונשמרו:", allCreatedCalendarEvents);
+        // --- סוף לוגיקה מהקוד הישן ---
         updateStatus(`נוצרו בהצלחה ${results.length} אירועי יומן!`, 'success');
 
     } catch (err) {
         displayAPIError(err, 'אירעו שגיאות ביצירת אירועי יומן.');
+    } finally {
+        restoreButton(button);
     }
 }
 
 /**
- * --- מימוש מלא ---
- * מוחק אירועים מיומן גוגל על בסיס המזהים השמורים.
+ * מוחק אירועים מיומן גוגל עם הלוגיקה המלאה מהקוד הישן.
  */
 export async function handleDeleteCalendarEvents(selectedEmployees) {
     if (gapi.client.getToken() === null) {
@@ -245,61 +269,66 @@ export async function handleDeleteCalendarEvents(selectedEmployees) {
         return;
     }
     
-    const weekId = getWeekId(DOMElements.datePicker.value);
-    const scheduleDataForWeek = allSchedules[weekId];
-    if (!scheduleDataForWeek) {
-        updateStatus('אין נתוני סידור לשבוע זה.', 'info');
-        return;
-    }
-
-    const deletionPromises = [];
-    const keysToDelete = [];
-
-    // מציאת כל האירועים שיש למחוק
-    Object.keys(scheduleDataForWeek).forEach(dayName => {
-        const dayData = scheduleDataForWeek[dayName];
-        ['morning', 'evening'].forEach(shiftType => {
-            const shiftDetails = dayData[shiftType];
-            if (shiftDetails && selectedEmployees.includes(shiftDetails.employee)) {
-                const shiftKey = `${weekId}-${dayName}-${shiftType}`;
-                const eventId = allCreatedCalendarEvents[shiftKey];
-
-                if (eventId) {
-                    deletionPromises.push(gapi.client.calendar.events.delete({
-                        'calendarId': 'primary',
-                        'eventId': eventId
-                    }));
-                    keysToDelete.push(shiftKey); // שמירת המפתח להסרה לאחר המחיקה
-                }
-            }
-        });
-    });
-
-    if (deletionPromises.length === 0) {
-        updateStatus('לא נמצאו אירועי יומן שמורים למחיקה עבור העובדים הנבחרים.', 'info');
-        return;
-    }
-
-    updateStatus(`מוחק ${deletionPromises.length} אירועים...`, 'loading', true);
-
+    const button = DOMElements.deleteCalendarEventsBtn;
+    setButtonLoading(button, 'מוחק...');
     try {
+        // --- התחלת לוגיקה מהקוד הישן ---
+        const weekId = getWeekId(DOMElements.datePicker.value);
+        const scheduleDataForWeek = allSchedules[weekId];
+        if (!scheduleDataForWeek) {
+            updateStatus('אין נתוני סידור לשבוע זה.', 'info');
+            return; // יציאה מוקדמת תפעיל את finally
+        }
+
+        const deletionPromises = [];
+        const keysToDelete = [];
+
+        Object.keys(scheduleDataForWeek).forEach(dayName => {
+            const dayData = scheduleDataForWeek[dayName];
+            ['morning', 'evening'].forEach(shiftType => {
+                const shiftDetails = dayData[shiftType];
+                if (shiftDetails && selectedEmployees.includes(shiftDetails.employee)) {
+                    const shiftKey = `${weekId}-${dayName}-${shiftType}`;
+                    const eventId = allCreatedCalendarEvents[shiftKey];
+
+                    if (eventId) {
+                        deletionPromises.push(gapi.client.calendar.events.delete({
+                            'calendarId': 'primary',
+                            'eventId': eventId
+                        }));
+                        keysToDelete.push(shiftKey);
+                    }
+                }
+            });
+        });
+        // --- סוף לוגיקה מהקוד הישן ---
+
+        if (deletionPromises.length === 0) {
+            updateStatus('לא נמצאו אירועי יומן שמורים למחיקה עבור העובדים הנבחרים.', 'info');
+            return; // יציאה מוקדמת תפעיל את finally
+        }
+
+        updateStatus(`מוחק ${deletionPromises.length} אירועים...`, 'loading', true);
         await Promise.all(deletionPromises);
 
-        // ניקוי המזהים מהמפה הגלובלית לאחר מחיקה מוצלחת
+        // --- התחלת לוגיקה מהקוד הישן ---
         keysToDelete.forEach(key => {
             delete allCreatedCalendarEvents[key];
         });
         
         console.log("אירועים שנותרו לאחר המחיקה:", allCreatedCalendarEvents);
+        // --- סוף לוגיקה מהקוד הישן ---
         updateStatus(`נמחקו בהצלחה ${deletionPromises.length} אירועי יומן!`, 'success');
 
     } catch (err) {
-        // שגיאה 410 (Gone) היא תקינה אם האירוע כבר נמחק
+        // --- התחלת לוגיקה מהקוד הישן ---
         if (err.result && err.result.error.code === 410) {
             updateStatus('חלק מהאירועים כבר נמחקו בעבר. הרשימה נוקתה.', 'info');
         } else {
             displayAPIError(err, 'אירעו שגיאות במחיקת אירועי יומן.');
         }
+        // --- סוף לוגיקה מהקוד הישן ---
+    } finally {
+        restoreButton(button);
     }
-    
 }
