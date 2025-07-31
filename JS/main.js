@@ -397,6 +397,8 @@ async function handleUpload(file, isPdf, inputElement) {
 
             const allShifts = (await Promise.all(extractionPromises)).flat();
             
+            // MODIFIED: Added status update for better UI feedback
+            updateStatus('ניתוח AI הושלם!', 'success');
             await updateStepper(3);
             updateStatus('הנתונים התקבלו, מבצע השוואה...', 'loading', true);
 
@@ -467,7 +469,7 @@ async function handleImportSelectedHilanetShifts() {
     if (importedCount > 0) {
         const hourglass = document.getElementById('hourglass-loader');
         
-        // Hide table, show loader
+        // Hide table content and show loader overlay
         DOMElements.differencesDisplay.innerHTML = '';
         if (hourglass) hourglass.classList.remove('hidden');
         setProcessingStatus(true);
@@ -482,6 +484,7 @@ async function handleImportSelectedHilanetShifts() {
             if (employeeName) {
                 const googleSheetsShifts = await getAllGoogleSheetsShiftsForEmployee(employeeName);
                 currentDifferences = hilanetParser.compareSchedules(googleSheetsShifts, currentHilanetShifts);
+                // Re-display the updated differences table
                 displayDifferences(currentDifferences);
             } else {
                 hideDifferencesContainer(); // Fallback if no employee name found
@@ -490,6 +493,8 @@ async function handleImportSelectedHilanetShifts() {
             updateStatus(`יובאו ${importedCount} משמרות בהצלחה.`, 'success');
         } catch(error) {
             displayAPIError(error, 'שגיאה בשמירת המשמרות שיובאו.');
+            // Restore the view even on error
+            displayDifferences(currentDifferences);
         } finally {
             if (hourglass) hourglass.classList.add('hidden');
             setProcessingStatus(false);
@@ -578,6 +583,8 @@ async function processImageWithMetadata(file, month, year, employeeName, inputEl
                 updateStatus('שולח תמונה לניתוח AI...', 'loading', true);
                 const extractedShifts = await hilanetParser.callGeminiForShiftExtraction(imageData, month, year, employeeName, 'generic');
                 
+                // MODIFIED: Added status update for better UI feedback
+                updateStatus('ניתוח AI הושלם!', 'success');
                 await updateStepper(3);
                 updateStatus('הנתונים התקבלו, מבצע השוואה...', 'loading', true);
     
