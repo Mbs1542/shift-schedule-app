@@ -1465,14 +1465,6 @@ function initializeAppLogic() {
             console.warn('Performance observer not supported');
         }
     }
-
-    // Initialize service worker for offline functionality (if available)
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js')
-            .then(() => console.log('Service Worker registered'))
-            .catch(() => console.log('Service Worker registration failed'));
-    }
-
     updateStatus('המערכת מוכנה לשימוש', 'success');
 }
 

@@ -28,7 +28,7 @@ export async function logLoginEvent(userEmail) {
     if (gapi.client.getToken() === null) return; // Don't log if not authenticated
 
     try {
-        const timestamp = new Date().toISOString();
+        const timestamp = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' }); 
         const values = [[timestamp, userEmail]]; // Data to append
 
         // Check if headers exist
