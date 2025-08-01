@@ -1,5 +1,4 @@
 import { fetchData, handleCreateCalendarEvents, handleDeleteCalendarEvents, initializeGapiClient, saveFullSchedule, logLoginEvent, sendEmailWithGmailApi } from './Api/googleApi.js';
-import { fetchData, handleCreateCalendarEvents, handleDeleteCalendarEvents, initializeGapiClient, saveFullSchedule, logLoginEvent } from './Api/googleApi.js';
 import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts, handleExportMonthlySummary, handleAnalyzeMonth, populateMonthSelector } from './components/charts.js';
 import { displayDifferences, hideDifferencesContainer, closeModal, closeVacationModal, handleModalSave, showEmployeeSelectionModal, showVacationModal, showEmailSelectionModal } from './components/modal.js';
 import { handleExportToExcel, renderSchedule, sendFridaySummaryEmail, handleSendEmail } from './components/schedule.js';
