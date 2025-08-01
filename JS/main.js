@@ -37,7 +37,6 @@ export let allCreatedCalendarEvents = {};
 let currentHilanetShifts = {};
 let currentDifferences = [];
 let isProcessing = false;
-let processingQueue = [];
 let abortController;
 
 // Performance optimization: cache frequently used elements
