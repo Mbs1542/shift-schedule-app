@@ -1,4 +1,4 @@
-// netlifyProjects/JS/main.js
+import { fetchData, handleCreateCalendarEvents, handleDeleteCalendarEvents, initializeGapiClient, saveFullSchedule, logLoginEvent, sendEmailWithGmailApi } from './Api/googleApi.js';
 import { fetchData, handleCreateCalendarEvents, handleDeleteCalendarEvents, initializeGapiClient, saveFullSchedule, logLoginEvent } from './Api/googleApi.js';
 import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts, handleExportMonthlySummary, handleAnalyzeMonth, populateMonthSelector } from './components/charts.js';
 import { displayDifferences, hideDifferencesContainer, closeModal, closeVacationModal, handleModalSave, showEmployeeSelectionModal, showVacationModal, showEmailSelectionModal } from './components/modal.js';
@@ -352,20 +352,36 @@ async function onTokenResponse(resp) {
         updateSigninStatus(false);
         return;
     }
-    
+
     try {
         localStorage.setItem('google_access_token', resp.access_token);
         gapi.client.setToken({ access_token: resp.access_token });
         updateSigninStatus(true);
-        
-        // [NEW] Log the login event
+
+        // Log the login event and send an email notification
         try {
             const profile = await gapi.client.gmail.users.getProfile({ 'userId': 'me' });
-            if (profile.result.emailAddress) {
-                await logLoginEvent(profile.result.emailAddress);
+            const userEmail = profile.result.emailAddress;
+
+            if (userEmail) {
+                // Log to sheet
+                await logLoginEvent(userEmail);
+
+                // [NEW] Send email notification
+                const notificationSubject = `התחברות חדשה למערכת הסידור`;
+                const notificationBody = `
+                    <p>התראה,</p>
+                    <p>זוהתה התחברות חדשה למערכת סידור העבודה.</p>
+                    <ul>
+                        <li><b>משתמש:</b> ${userEmail}</li>
+                        <li><b>בתאריך:</b> ${new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' })}</li>
+                    </ul>
+                `;
+                // Sends the email to your predefined address
+                await sendEmailWithGmailApi('maorbensimon1542@gmail.com', notificationSubject, notificationBody);
             }
         } catch (error) {
-            console.error('Could not get user profile or log event:', error);
+            console.error('Could not get user profile, log event, or send email:', error);
         }
 
         await fetchData();

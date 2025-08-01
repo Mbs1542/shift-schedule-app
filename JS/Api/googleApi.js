@@ -135,7 +135,6 @@ export async function fetchData() {
         restoreButton(button);
     }
 }
-
 /**
  * [FEATURE ADDED] Saves the entire schedule object to the Google Sheet,
  * including a `last_updated` timestamp for each shift row.
@@ -148,7 +147,8 @@ export async function saveFullSchedule(fullScheduleData) {
     updateStatus('שומר...', 'loading', true);
     DOMElements.scheduleCard.classList.add('loading');
     try {
-        const timestamp = new Date().toISOString(); // Generate a single timestamp for the entire save operation.
+        // [FIX] Changed timestamp to local Israel time
+        const timestamp = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' });
 
         const dataToWrite = [
             // [NEW] Added "last_updated" to the header row
