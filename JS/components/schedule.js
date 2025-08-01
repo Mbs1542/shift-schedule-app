@@ -2,7 +2,6 @@ import { sendEmailWithGmailApi } from "../Api/googleApi.js";
 import { DAYS, DEFAULT_SHIFT_TIMES } from "../config.js";
 import { allSchedules, DOMElements, updateStatus } from "../main.js";
 import { handleShiftCellClick } from './modal.js';
-// *** MODIFIED: Import new helper functions ***
 import { getWeekDates, formatDate, getWeekId, setButtonLoading, restoreButton } from "../utils.js";
 
 
@@ -11,7 +10,6 @@ import { getWeekDates, formatDate, getWeekId, setButtonLoading, restoreButton } 
  * Renders the schedule table for a given week ID.
  * @param {string} weekId - The ID of the week to render.
  */
-
 export function renderSchedule(weekId) {
     const scheduleDataForWeek = allSchedules[weekId] || {};
     const weekDates = getWeekDates(new Date(weekId));
@@ -31,7 +29,14 @@ export function renderSchedule(weekId) {
             row.innerHTML += '<td colspan="2" class="p-3 bg-blue-50 text-blue-700 font-bold border-r border-l border-slate-300 text-center">שבת שלום</td>';
         } else {
             const dayData = scheduleDataForWeek[dayName] || {};
-            const morningShift = dayData.morning || { employee: 'none', start: DEFAULT_SHIFT_TIMES.morning.start, end: DEFAULT_SHIFT_TIMES.morning.end };
+
+            // Set default times for Friday morning
+            const isFriday = dayName === 'שישי';
+            const morningDefault = isFriday 
+                ? { start: '07:00:00', end: '12:00:00' } 
+                : DEFAULT_SHIFT_TIMES.morning;
+
+            const morningShift = dayData.morning || { employee: 'none', ...morningDefault };
             const eveningShift = dayData.evening || { employee: 'none', start: DEFAULT_SHIFT_TIMES.evening.start, end: DEFAULT_SHIFT_TIMES.evening.end };
             
             const eveningCellContent = dayName === 'שישי'
@@ -150,7 +155,7 @@ export async function handleExportToExcel() {
  * לאחר מכן, היא בונה גוף אימייל בפורמט HTML מעוצב המכיל טבלה של הסידור,
  * שולחת את המייל, ומנהלת את מצב כפתור השליחה (טעינה ושחזור).
  */
-export async function handleSendEmail(recipient) { // MODIFIED: Added recipient parameter
+export async function handleSendEmail(recipient, customMessage = '') {
     // בדיקה אם המשתמש מחובר לחשבון גוגל
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי לשלוח מייל.', 'info', false);
@@ -161,16 +166,22 @@ export async function handleSendEmail(recipient) { // MODIFIED: Added recipient 
     setButtonLoading(button, 'שולח...'); // הצגת אנימציית טעינה בכפתור
 
     try {
-        // REMOVED: const recipient = 'maorbens@assuta.co.il'; // נמען קבוע
         const weekId = getWeekId(DOMElements.datePicker.value);
         const subject = `סידור עבודה לשבוע של ${formatDate(new Date(weekId))}`;
         let emailBodyContent = '';
 
         // בדיקה אם אלמנטי ה-DOM של הסידור קיימים כדי לבנות מהם את המייל
         if (DOMElements.scheduleTable && DOMElements.scheduleTitle) {
+            
+            // Prepend custom message if it exists
+            const customMessageHtml = customMessage 
+                ? `<p style="margin-bottom: 20px; font-size: 16px; white-space: pre-wrap;">${customMessage}</p>` 
+                : '';
+            
             // התחלת בניית גוף המייל בפורמט HTML
             emailBodyContent = `
                 <div style="font-family: 'Rubik', sans-serif; direction: rtl; text-align: right; color: #333;">
+                    ${customMessageHtml}
                     <h2 style="color: #2563eb; font-size: 24px; margin-bottom: 20px;">${DOMElements.scheduleTitle.textContent}</h2>
                     <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
                         <thead>
