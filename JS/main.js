@@ -553,13 +553,12 @@ async function handleVacationShift() {
 }
 
 /**
- * Enhanced Gemini Suggestion Logic with Better Error Handling and Caching
+ * [FIXED] Enhanced Gemini Suggestion Logic with a much stricter prompt.
  */
 const handleGeminiSuggestShift = debounce(async () => {
     const button = DOMElements.geminiSuggestionBtn;
     setButtonLoading(button, 'חושב...');
 
-    // Create abort controller for this request
     abortController = new AbortController();
 
     try {
@@ -568,7 +567,6 @@ const handleGeminiSuggestShift = debounce(async () => {
         const dayIndex = DAYS.indexOf(day);
         const shiftType = DOMElements.shiftModal.dataset.shift;
 
-        // Enhanced context gathering with validation
         const currentWeekDate = new Date(weekId);
         currentWeekDate.setDate(currentWeekDate.getDate() - 7);
         const previousWeekId = getWeekId(currentWeekDate.toISOString().split('T')[0]);
@@ -591,35 +589,46 @@ const handleGeminiSuggestShift = debounce(async () => {
             scheduleContext += `- יום ${dayName}: בוקר - ${morningShift}, ערב - ${eveningShift}\n`;
         });
 
-        // Enhanced prompt with better context
+        // [FIX] Stricter prompt to ensure only the name is returned.
         const prompt = `
-            אתה בוט מומחה לשיבוץ משמרות. יש שני עובדים: מאור ומור.
-            עליך לנתח את הנתונים, לבדוק כל עובד מול כל חוק, ולהמליץ על העובד המתאים ביותר.
+            <SYSTEM INSTRUCTION>
+            You are an expert system for work shift scheduling.
+            Your task is to analyze the provided data and rules, and determine the single best employee to assign to a specific shift.
+            You must follow the decision-making process exactly.
+            Your final output MUST be a single word: the name of the employee ('מאור' or 'מור') or the phrase 'אף אחד' if no one is suitable.
+            DO NOT add any explanation, greeting, or any other text.
 
-            **1. נתונים:**
-            - **המשמרת לשיבוץ:** יום ${day}, משמרת ${shiftType === 'morning' ? 'בוקר' : 'ערב'}.
-            - **עובדים לבדיקה:** ${availableEmployees.join(', ')}.
-            - **מי עבד בשישי שעבר:** ${lastFridayWorker}.
-            - **מי עבד במשמרת הקודמת:** ${previousShiftWorker}.
-            - **סידור השבוע הנוכחי:**
+            EXPECTED OUTPUT EXAMPLES:
+            - מאור
+            - מור
+            - אף אחד
+            </SYSTEM INSTRUCTION>
+
+            **1. DATA:**
+            - **Shift to Schedule:** Day ${day}, Shift ${shiftType === 'morning' ? 'בוקר' : 'ערב'}.
+            - **Employees to Check:** ${availableEmployees.join(', ')}.
+            - **Who worked last Friday:** ${lastFridayWorker}.
+            - **Who worked the previous shift:** ${previousShiftWorker}.
+            - **Current Week's Schedule:**
             ${scheduleContext}
 
-            **2. חוקים (לפי סדר):**
-            - **חוק 1 (כפילות באותו יום):** עובד לא יכול לעבוד שתי משמרות באותו יום.
-            - **חוק 2 (חמישי-שישי):** עובד המשובץ לבוקר יום שישי, לא יכול לעבוד בחמישי ערב.
-            - **חוק 3 (סבב שישי):** אסור לשבץ לשישי בוקר את מי שעבד בשישי שעבר (${lastFridayWorker}).
-            - **חוק 4 (מכסת משמרות):** עובד לא יכול לעבוד יותר מ-5 משמרות בשבוע.
+            **2. RULES (in order of priority):**
+            - **Rule 1 (No Same-Day Duplicates):** An employee cannot work two shifts on the same day.
+            - **Rule 2 (Thursday-Friday):** An employee scheduled for Friday morning cannot work Thursday evening.
+            - **Rule 3 (Friday Rotation):** The employee who worked last Friday (${lastFridayWorker}) cannot be scheduled for Friday morning.
+            - **Rule 4 (Max Shifts):** An employee cannot work more than 5 shifts in a week.
 
-            **3. תהליך קבלת החלטות:**
-            א. התחל עם רשימת עובדים: [${availableEmployees.join(', ')}].
-            ב. עבור כל עובד, בדוק אם שיבוצו יפר אחד מהחוקים. אם כן, פסול אותו.
-            ג. אם נשאר רק עובד אחד, בחר בו.
-            ד. אם שני העובדים עומדים בחוקים, בחר את זה עם פחות משמרות השבוע.
-            ה. **שובר שוויון:** אם מספר המשמרות שווה, העדף את העובד **שלא** עבד במשמרת הקודמת.
-            ו. אם שני העובדים נפסלו, התשובה היא "אף אחד".
+            **3. DECISION PROCESS:**
+            A. Start with the list of employees: [${availableEmployees.join(', ')}].
+            B. For each employee, check if assigning them to the shift violates any of the rules. If a rule is violated, disqualify that employee.
+            C. If only one employee remains, select them.
+            D. If both employees are valid, select the one with fewer shifts currently scheduled this week.
+            E. **Tie-Breaker:** If they have the same number of shifts, prefer the employee who did **not** work the immediately preceding shift.
+            F. If both employees are disqualified, the answer is "אף אחד".
 
-            **4. פלט נדרש:**
-            החזר **אך ורק** את שם העובד שבחרת. בלי שום טקסט נוסף.
+            **4. REQUIRED OUTPUT:**
+            Based on the process above, who should be scheduled?
+            (Your response must be ONLY the name)
         `;
 
         updateStatus('מבקש הצעת שיבוץ מ-Gemini...', 'loading', true);
@@ -661,6 +670,7 @@ const handleGeminiSuggestShift = debounce(async () => {
         abortController = null;
     }
 }, PROCESSING_TIMEOUTS.BUTTON_DEBOUNCE);
+
 
 // --- Enhanced File Upload with Better Validation ---
 async function handleUpload(file, isPdf, inputElement) {

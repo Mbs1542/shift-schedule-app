@@ -139,7 +139,7 @@ export function showEmployeeSelectionModal(actionCallback, modalTitleText, preSe
             const label = document.createElement('label');
             label.htmlFor = `employee-${employee}`;
             label.textContent = employee;
-            label.className = 'ml-2 text-slate-700';
+            label.className = 'ml-2 text-slate-700 dark:text-slate-300';
 
             div.appendChild(input);
             div.appendChild(label);
@@ -225,20 +225,21 @@ export function displayDifferences(differences) {
         downloadBtn.style.display = 'inline-block';
 
         const table = document.createElement('table');
-        table.className = 'w-full border-collapse';
+        // [FIX] Added dark mode classes for text and borders
+        table.className = 'w-full border-collapse text-slate-700 dark:text-slate-200';
         table.innerHTML = `
             <thead>
-                <tr class="bg-slate-100 text-slate-800">
-                    <th class="p-2 border border-slate-300 w-10">
+                <tr class="bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200">
+                    <th class="p-2 border border-slate-300 dark:border-slate-600 w-10">
                         <div class="flex items-center justify-center">
                             <input type="checkbox" id="select-all-differences" class="h-4 w-4 text-blue-600 rounded">
                         </div>
                     </th>
-                    <th class="p-2 border border-slate-300">סוג שינוי</th>
-                    <th class="p-2 border border-slate-300">תאריך</th>
-                    <th class="p-2 border border-slate-300">משמרת</th>
-                    <th class="p-2 border border-slate-300">סידור נוכחי</th>
-                    <th class="p-2 border border-slate-300">סידור חילנט</th>
+                    <th class="p-2 border border-slate-300 dark:border-slate-600">סוג שינוי</th>
+                    <th class="p-2 border border-slate-300 dark:border-slate-600">תאריך</th>
+                    <th class="p-2 border border-slate-300 dark:border-slate-600">משמרת</th>
+                    <th class="p-2 border border-slate-300 dark:border-slate-600">סידור נוכחי</th>
+                    <th class="p-2 border border-slate-300 dark:border-slate-600">סידור חילנט</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -247,20 +248,21 @@ export function displayDifferences(differences) {
         const tbody = table.querySelector('tbody');
         differences.forEach(diff => {
             const row = tbody.insertRow();
-            let rowClass = 'hover:bg-slate-100';
+            let rowClass = 'hover:bg-slate-100 dark:hover:bg-slate-700'; // Default hover
             let typeHebrew = '';
 
+            // [FIX] Added dark mode background classes with opacity
             switch(diff.type) {
                 case 'added':
-                    rowClass = 'bg-green-100 hover:bg-green-200';
+                    rowClass = 'bg-green-100 dark:bg-green-900/40 hover:bg-green-200 dark:hover:bg-green-800/50';
                     typeHebrew = 'קיים בחילנט בלבד';
                     break;
                 case 'removed':
-                    rowClass = 'bg-red-100 hover:bg-red-200';
+                    rowClass = 'bg-red-100 dark:bg-red-900/40 hover:bg-red-200 dark:hover:bg-red-800/50';
                     typeHebrew = 'קיים במערכת בלבד';
                     break;
                 case 'changed':
-                    rowClass = 'bg-yellow-100 hover:bg-yellow-200';
+                    rowClass = 'bg-yellow-100 dark:bg-yellow-800/30 hover:bg-yellow-200 dark:hover:bg-yellow-700/40';
                     typeHebrew = 'שונה';
                     break;
             }
@@ -275,14 +277,15 @@ export function displayDifferences(differences) {
             const checkboxHTML = canImport 
                 ? `<input type="checkbox" class="difference-checkbox h-4 w-4 text-blue-600 rounded" data-diff-id="${diff.id}">`
                 : '';
-
+            
+            // [FIX] Added dark mode border classes for cells
             row.innerHTML = `
-                <td class="p-2 border border-slate-300 text-center">${checkboxHTML}</td>
-                <td class="p-2 border border-slate-300 font-medium">${typeHebrew}</td>
-                <td class="p-2 border border-slate-300">${formatDate(diff.date, { day: '2-digit', month: '2-digit' })} (${diff.dayName})</td>
-                <td class="p-2 border border-slate-300">${diff.shiftType === 'morning' ? 'בוקר' : 'ערב'}</td>
-                <td class="p-2 border border-slate-300">${gsDetails}</td>
-                <td class="p-2 border border-slate-300">${hlDetails}</td>
+                <td class="p-2 border border-slate-300 dark:border-slate-600 text-center">${checkboxHTML}</td>
+                <td class="p-2 border border-slate-300 dark:border-slate-600 font-medium">${typeHebrew}</td>
+                <td class="p-2 border border-slate-300 dark:border-slate-600">${formatDate(diff.date, { day: '2-digit', month: '2-digit' })} (${diff.dayName})</td>
+                <td class="p-2 border border-slate-300 dark:border-slate-600">${diff.shiftType === 'morning' ? 'בוקר' : 'ערב'}</td>
+                <td class="p-2 border border-slate-300 dark:border-slate-600">${gsDetails}</td>
+                <td class="p-2 border border-slate-300 dark:border-slate-600">${hlDetails}</td>
             `;
         });
 
@@ -301,6 +304,7 @@ export function displayDifferences(differences) {
 
     container.classList.remove('hidden');
 }
+
 
 export function hideDifferencesContainer() {
     if (DOMElements.differencesContainer) {
@@ -340,7 +344,7 @@ export function showEmailSelectionModal() {
         const label = document.createElement('label');
         label.htmlFor = `email-option-${option}`;
         label.textContent = option;
-        label.className = 'ms-2 text-slate-700';
+        label.className = 'ms-2 text-slate-700 dark:text-slate-300';
 
         div.appendChild(input);
         div.appendChild(label);

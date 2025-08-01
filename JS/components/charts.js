@@ -21,7 +21,8 @@ function calculateHours(start, end) {
     }
 }
 
-/** Displays a bar chart showing shift distribution per employee for the current week. */
+/** * [FIXED] Displays charts and ensures the monthly summary opens on the first click.
+ */
 export async function handleShowChart() {
     if (gapi.client.getToken() === null) {
         updateStatus('יש להתחבר עם חשבון Google כדי לבצע פעולה זו.', 'info', false);
@@ -38,20 +39,14 @@ export async function handleShowChart() {
             DOMElements.chartCard.classList.add('hidden');
             DOMElements.monthlySummaryChartCard.classList.add('hidden');
             DOMElements.monthlySummaryEmployeeSelect.value = '';
+            DOMElements.monthlyAnalysisContainer.classList.add('hidden');
+            destroyAllCharts();
             updateStatus('', 'info', false);
             return;
         }
 
+        // --- Weekly Chart Logic ---
         DOMElements.chartCard.classList.remove('hidden');
-        DOMElements.monthlySummaryEmployeeSelect.value = 'מאור'; 
-        populateMonthSelector();
-        await updateMonthlySummaryChart(); 
-        setupMonthlyChartEventListeners();
-
-        setTimeout(() => {
-            DOMElements.chartCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 100);
-
         const weekId = getWeekId(DOMElements.datePicker.value);
         const scheduleDataForWeek = allSchedules[weekId] || {};
         const employeeShiftCounts = {};
@@ -72,69 +67,73 @@ export async function handleShowChart() {
         });
 
         const employees = Object.keys(employeeShiftCounts);
+        const weeklyChartCanvas = document.getElementById('shift-chart');
+
         if (employees.length === 0) {
             updateStatus('אין משמרות משובצות לשבוע זה להצגה בגרף.', 'info', false);
             if (weeklyChart) weeklyChart.destroy();
             weeklyChart = null;
-            document.getElementById('shift-chart').style.display = 'none';
-            return;
-        }
-        
-        document.getElementById('shift-chart').style.display = 'block';
+            if(weeklyChartCanvas) weeklyChartCanvas.style.display = 'none';
+        } else {
+            if(weeklyChartCanvas) weeklyChartCanvas.style.display = 'block';
 
-        const morningData = employees.map(emp => employeeShiftCounts[emp].morning);
-        const eveningData = employees.map(emp => employeeShiftCounts[emp].evening);
-        
-        const isDarkMode = document.documentElement.classList.contains('dark');
-        const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
-        const textColor = isDarkMode ? '#e5e7eb' : '#374151';
+            const morningData = employees.map(emp => employeeShiftCounts[emp].morning);
+            const eveningData = employees.map(emp => employeeShiftCounts[emp].evening);
+            
+            const isDarkMode = document.documentElement.classList.contains('dark');
+            const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+            const textColor = isDarkMode ? '#e5e7eb' : '#374151';
 
-        const chartConfig = {
-            type: 'bar',
-            data: {
-                labels: employees,
-                datasets: [{
-                    label: 'משמרות בוקר',
-                    data: morningData,
-                    backgroundColor: '#3B82F6'
-                }, {
-                    label: 'משמרות ערב',
-                    data: eveningData,
-                    backgroundColor: '#8B5CF6'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: { display: true, text: 'מספר משמרות', color: textColor },
-                        ticks: { stepSize: 1, color: textColor },
-                        grid: { color: gridColor }
-                    },
-                    x: {
-                        title: { display: true, text: 'עובדים', color: textColor },
-                        ticks: { color: textColor },
-                        grid: { color: gridColor }
-                    }
+            const chartConfig = {
+                type: 'bar',
+                data: {
+                    labels: employees,
+                    datasets: [{
+                        label: 'משמרות בוקר',
+                        data: morningData,
+                        backgroundColor: '#3B82F6'
+                    }, {
+                        label: 'משמרות ערב',
+                        data: eveningData,
+                        backgroundColor: '#8B5CF6'
+                    }]
                 },
-                plugins: {
-                    legend: { display: true, position: 'top', labels: { color: textColor } },
-                    title: { display: true, text: `התפלגות משמרות לשבוע של ${formatDate(new Date(weekId))}`, color: textColor, font: { size: 16 } }
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'מספר משמרות', color: textColor }, ticks: { stepSize: 1, color: textColor }, grid: { color: gridColor } },
+                        x: { title: { display: true, text: 'עובדים', color: textColor }, ticks: { color: textColor }, grid: { color: gridColor } }
+                    },
+                    plugins: {
+                        legend: { display: true, position: 'top', labels: { color: textColor } },
+                        title: { display: true, text: `התפלגות משמרות לשבוע של ${formatDate(new Date(weekId))}`, color: textColor, font: { size: 16 } }
+                    }
                 }
-            }
-        };
+            };
+            const ctx = weeklyChartCanvas.getContext('2d');
+            if (weeklyChart) weeklyChart.destroy();
+            weeklyChart = new Chart(ctx, chartConfig);
+        }
 
-        const ctx = document.getElementById('shift-chart').getContext('2d');
-        if (weeklyChart) weeklyChart.destroy();
-        weeklyChart = new Chart(ctx, chartConfig);
+        // --- Monthly Summary Logic (FIXED FOR IMMEDIATE DISPLAY) ---
+        DOMElements.monthlySummaryEmployeeSelect.value = 'מאור'; 
+        DOMElements.monthlySummaryChartCard.classList.remove('hidden'); // Ensure card is visible
+        DOMElements.monthlyAnalysisContainer.classList.add('hidden'); // Hide old analysis
+        
+        populateMonthSelector(); // Populate months for default user
+        await updateMonthlySummaryChart(); // Draw chart for default selection
+        setupMonthlyChartEventListeners();
 
-        updateStatus('גרף המשמרות הוצג בהצלחה!', 'success', false);
+        setTimeout(() => {
+            DOMElements.chartCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+
+        updateStatus('גרפים הוצגו בהצלחה!', 'success', false);
 
     } catch(error) {
-        displayAPIError(error, 'שגיאה בהצגת הגרף.');
+        displayAPIError(error, 'שגיאה בהצגת הגרפים.');
         DOMElements.chartCard.classList.add('hidden');
+        DOMElements.monthlySummaryChartCard.classList.add('hidden');
     } finally {
         restoreButton(button);
     }
@@ -142,9 +141,9 @@ export async function handleShowChart() {
 
 
 /**
- * ### FIXED: Collects monthly data for a SINGLE employee ###
- * This function was updated to iterate through all schedules but only aggregate
- * the data for the specific `employeeName` provided, ensuring the summary is accurate.
+ * [FIXED & VERIFIED] Collects and aggregates monthly data for a single employee.
+ * This function is the single source of truth for both the monthly chart and the AI analysis,
+ * ensuring data consistency by correctly filtering shifts by the provided employee name.
  * @param {string} employeeName - The name of the employee to get data for.
  * @returns {Object} An object containing aggregated monthly data for that employee.
  */
@@ -164,15 +163,16 @@ function getMonthlyDataForEmployee(employeeName) {
 
             // Iterate through morning and evening shifts
             ['morning', 'evening'].forEach(shiftType => {
-                // **CRITICAL FIX**: Check if the shift exists AND belongs to the selected employee
-                if (dayData[shiftType] && dayData[shiftType].employee === employeeName) {
+                const shift = dayData[shiftType];
+
+                // **CRITICAL LOGIC**: Check if the shift exists AND belongs to the specified employee.
+                if (shift && shift.employee === employeeName) {
                     
                     // Initialize the data structure for the month if it doesn't exist
                     if (!monthlyData[monthYearKey]) {
                         monthlyData[monthYearKey] = { morning: 0, evening: 0, totalHours: 0, shifts: [] };
                     }
                     
-                    const shift = dayData[shiftType];
                     const duration = calculateHours(shift.start, shift.end);
                     
                     // Aggregate the data
@@ -201,9 +201,11 @@ export function populateMonthSelector() {
     const monthContainer = DOMElements.monthSelectorContainer;
 
     monthSelect.innerHTML = ''; 
+    DOMElements.monthlyAnalysisContainer.classList.add('hidden');
     
     if (!selectedEmployee) {
         monthContainer.classList.add('hidden');
+        if (monthlySummaryChart) monthlySummaryChart.destroy();
         return;
     }
 
@@ -212,6 +214,8 @@ export function populateMonthSelector() {
 
     if (sortedMonths.length === 0) {
         monthContainer.classList.add('hidden');
+        if (monthlySummaryChart) monthlySummaryChart.destroy();
+        DOMElements.monthlySummaryChartCard.classList.add('hidden');
         return;
     }
 
@@ -230,6 +234,7 @@ export function populateMonthSelector() {
 export async function updateMonthlySummaryChart() {
     const selectedEmployee = DOMElements.monthlySummaryEmployeeSelect.value;
     const selectedMonth = DOMElements.monthlySummaryMonthSelect.value;
+    DOMElements.monthlyAnalysisContainer.classList.add('hidden');
     
     if (!selectedEmployee || !selectedMonth) {
         if (monthlySummaryChart) monthlySummaryChart.destroy();
@@ -243,16 +248,22 @@ export async function updateMonthlySummaryChart() {
 
     if (!dataForMonth || dataForMonth.shifts.length === 0) {
         updateStatus(`לא נמצאו נתונים עבור ${selectedEmployee} בחודש ${formatMonthYear(selectedMonth)}.`, 'info');
-        DOMElements.monthlySummaryChartCard.classList.add('hidden');
         if (monthlySummaryChart) monthlySummaryChart.destroy();
         monthlySummaryChart = null;
+        // Hide only the chart canvas, not the entire card, so controls remain visible.
+        const canvas = document.getElementById('monthly-summary-chart');
+        if (canvas) canvas.style.display = 'none'; 
         return;
+    } else {
+        const canvas = document.getElementById('monthly-summary-chart');
+        if (canvas) canvas.style.display = 'block';
     }
     
     const isDarkMode = document.documentElement.classList.contains('dark');
-    const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
     const textColor = isDarkMode ? '#e5e7eb' : '#374151';
 
+    const totalShifts = dataForMonth.morning + dataForMonth.evening;
+    const titleText = `סיכום ל${selectedEmployee} - ${formatMonthYear(selectedMonth)} (סה"כ: ${totalShifts} משמרות, ${dataForMonth.totalHours.toFixed(2)} שעות)`;
 
     const chartConfig = {
         type: 'doughnut',
@@ -276,7 +287,7 @@ export async function updateMonthlySummaryChart() {
                 },
                 title: { 
                     display: true, 
-                    text: `סיכום ל${selectedEmployee} - ${formatMonthYear(selectedMonth)} (סה"כ: ${dataForMonth.totalHours.toFixed(2)} שעות)`,
+                    text: titleText,
                     color: textColor,
                     font: { size: 16 }
                 }
