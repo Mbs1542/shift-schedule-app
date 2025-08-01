@@ -1,5 +1,5 @@
 // Google API Configuration
-export const CLIENT_ID = '429395194298-cg51e11n3lbas4nco1igqdh86b8pe8jl.apps.googleusercontent.com';
+export const CLIENT_ID = '429395194298-a5v1mp33hsv53m0ksdalvipt9ebtrg81.apps.googleusercontent.com';
 export const SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly';
 export const SPREADSHEET_ID = '1vgNyxWLWtdbqDk4_FOpQPSlyVZq1zhvxAv-SylYHzsk';
 export const SHEET_NAME = 'schedules';
