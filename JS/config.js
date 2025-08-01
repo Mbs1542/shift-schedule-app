@@ -1,8 +1,9 @@
 // Google API Configuration
 export const CLIENT_ID = '429395194298-cg51e11n3lbas4nco1igqdh86b8pe8jl.apps.googleusercontent.com';
-export const SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/calendar.events';
+export const SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email';
 export const SPREADSHEET_ID = '1vgNyxWLWtdbqDk4_FOpQPSlyVZq1zhvxAv-SylYHzsk';
 export const SHEET_NAME = 'schedules';
+export const SHEET_NAME_LOGS = 'login_logs'; // New constant for the logs sheet
 
 // Employee and Shift Configurations
 export const EMPLOYEES = ['מאור', 'מור', 'טכנאי מרכז'];

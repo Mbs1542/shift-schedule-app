@@ -1,5 +1,5 @@
 // netlifyProjects/JS/main.js
-import { fetchData, handleCreateCalendarEvents, handleDeleteCalendarEvents, initializeGapiClient, saveFullSchedule } from './Api/googleApi.js';
+import { fetchData, handleCreateCalendarEvents, handleDeleteCalendarEvents, initializeGapiClient, saveFullSchedule, logLoginEvent } from './Api/googleApi.js';
 import { handleShowChart, updateMonthlySummaryChart, destroyAllCharts, handleExportMonthlySummary, handleAnalyzeMonth, populateMonthSelector } from './components/charts.js';
 import { displayDifferences, hideDifferencesContainer, closeModal, closeVacationModal, handleModalSave, showEmployeeSelectionModal, showVacationModal, showEmailSelectionModal } from './components/modal.js';
 import { handleExportToExcel, renderSchedule, sendFridaySummaryEmail, handleSendEmail } from './components/schedule.js';
@@ -357,6 +357,17 @@ async function onTokenResponse(resp) {
         localStorage.setItem('google_access_token', resp.access_token);
         gapi.client.setToken({ access_token: resp.access_token });
         updateSigninStatus(true);
+        
+        // [NEW] Log the login event
+        try {
+            const profile = await gapi.client.gmail.users.getProfile({ 'userId': 'me' });
+            if (profile.result.emailAddress) {
+                await logLoginEvent(profile.result.emailAddress);
+            }
+        } catch (error) {
+            console.error('Could not get user profile or log event:', error);
+        }
+
         await fetchData();
     } catch (error) {
         console.error('Token response handling error:', error);
@@ -776,7 +787,7 @@ async function handleUpload(file, isPdf, inputElement) {
         }
 
         currentHilanetShifts = hilanetParser.structureShifts(allShifts, detectedMonth, detectedYear, employeeName);
-        const googleSheetsShifts = await getAllGoogleSheetsShiftsForEmployee(employeeName);
+        const googleSheetsShifts = await getAllGoogleSheetsShiftsForEmployee(employeeName, detectedYear, detectedMonth);
         currentDifferences = hilanetParser.compareSchedules(googleSheetsShifts, currentHilanetShifts);
 
         displayDifferences(currentDifferences);
@@ -793,8 +804,14 @@ async function handleUpload(file, isPdf, inputElement) {
     }
 }
 
-// --- Enhanced Google Sheets Data Fetching ---
-async function getAllGoogleSheetsShiftsForEmployee(employeeName) {
+/**
+ * [FIXED] Fetches Google Sheets shifts, filtering by employee, year, and month.
+ * @param {string} employeeName - The employee to filter by.
+ * @param {string|number} year - The year to filter by.
+ * @param {string|number} month - The month to filter by.
+ * @returns {Promise<Object>} An object of shifts for that employee in that month.
+ */
+async function getAllGoogleSheetsShiftsForEmployee(employeeName, year, month) {
     const employeeShifts = {};
     
     try {
@@ -808,17 +825,23 @@ async function getAllGoogleSheetsShiftsForEmployee(employeeName) {
             const weekDates = getWeekDates(new Date(weekId));
             
             weekDates.forEach(dateObj => {
-                const dateString = dateObj.toISOString().split('T')[0];
-                const dayName = DAYS[dateObj.getDay()];
-                if (!weekData[dayName]) return;
+                const dateYear = dateObj.getFullYear();
+                const dateMonth = dateObj.getMonth() + 1; // getMonth() is 0-indexed
 
-                ['morning', 'evening'].forEach(shiftType => {
-                    const shift = weekData[dayName][shiftType];
-                    if (shift && shift.employee === employeeName) {
-                        if (!employeeShifts[dateString]) employeeShifts[dateString] = {};
-                        employeeShifts[dateString][shiftType] = { ...shift };
-                    }
-                });
+                // [FIX] Filter by the selected year and month for accurate comparison
+                if (dateYear.toString() === year.toString() && dateMonth.toString() === month.toString()) {
+                    const dateString = dateObj.toISOString().split('T')[0];
+                    const dayName = DAYS[dateObj.getDay()];
+                    if (!weekData[dayName]) return;
+
+                    ['morning', 'evening'].forEach(shiftType => {
+                        const shift = weekData[dayName][shiftType];
+                        if (shift && shift.employee === employeeName) {
+                            if (!employeeShifts[dateString]) employeeShifts[dateString] = {};
+                            employeeShifts[dateString][shiftType] = { ...shift };
+                        }
+                    });
+                }
             });
         }
         
@@ -828,6 +851,7 @@ async function getAllGoogleSheetsShiftsForEmployee(employeeName) {
         throw new Error('שגיאה בטעינת נתוני העובד מהמערכת');
     }
 }
+
 
 // --- Enhanced Import Function ---
 async function handleImportSelectedHilanetShifts() {
@@ -858,7 +882,10 @@ async function handleImportSelectedHilanetShifts() {
                 
                 const employeeName = selectedDifferences[0]?.hilanet?.employee || selectedDifferences[0]?.googleSheets?.employee;
                 if (employeeName) {
-                    const googleSheetsShifts = await getAllGoogleSheetsShiftsForEmployee(employeeName);
+                    const date = new Date(selectedDifferences[0].date);
+                    const year = date.getFullYear();
+                    const month = date.getMonth() + 1;
+                    const googleSheetsShifts = await getAllGoogleSheetsShiftsForEmployee(employeeName, year, month);
                     currentDifferences = hilanetParser.compareSchedules(googleSheetsShifts, currentHilanetShifts);
                     displayDifferences(currentDifferences);
                 } else {
@@ -1030,7 +1057,7 @@ async function processImageWithMetadata(file, month, year, employeeName, inputEl
         }
 
         currentHilanetShifts = hilanetParser.structureShifts(extractedShifts, month, year, employeeName);
-        const googleSheetsShifts = await getAllGoogleSheetsShiftsForEmployee(employeeName);
+        const googleSheetsShifts = await getAllGoogleSheetsShiftsForEmployee(employeeName, year, month);
         currentDifferences = hilanetParser.compareSchedules(googleSheetsShifts, currentHilanetShifts);
 
         displayDifferences(currentDifferences);
