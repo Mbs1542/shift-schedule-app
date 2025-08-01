@@ -1,5 +1,27 @@
+// netlifyProjects/JS/utils.js
 // Add this line at the top
 export const DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
+/**
+ * Creates a debounced function that delays invoking the provided function until after 
+ * a certain number of milliseconds have passed since the last time it was invoked.
+ * @param {Function} func The function to debounce.
+ * @param {number} wait The number of milliseconds to delay.
+ * @returns {Function} Returns the new debounced function.
+ */
+export function debounce(func, wait) {
+  let timeout;
+
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+};
 
 // --- General Helper Functions ---
 /**
@@ -61,7 +83,6 @@ export function getWeekDates(startDate) {
  */
 export function setButtonLoading(button, loadingText = 'טוען...') {
   if (!button) return;
-  button.disabled = true;
   button.dataset.originalHtml = button.innerHTML;
   button.innerHTML = `
     <svg aria-hidden="true" role="status" class="inline w-4 h-4 me-3 animate-spin" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -70,6 +91,7 @@ export function setButtonLoading(button, loadingText = 'טוען...') {
     </svg>
     <span class="ms-2">${loadingText}</span>
   `;
+  button.disabled = true;
 }
 
 /**
@@ -78,9 +100,9 @@ export function setButtonLoading(button, loadingText = 'טוען...') {
  */
 export function restoreButton(button) {
   if (!button || typeof button.dataset.originalHtml === 'undefined') return;
-  button.disabled = false;
   button.innerHTML = button.dataset.originalHtml;
   delete button.dataset.originalHtml;
+  button.disabled = false;
 }
 
 
